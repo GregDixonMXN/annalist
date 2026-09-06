@@ -8,18 +8,19 @@ const store = @import("store.zig");
 const hash = @import("hash.zig");
 const diff = @import("diff.zig");
 
-pub fn listSessions(allocator: std.mem.Allocator, database: *db.Db, project_id: []const u8) !void {
+pub fn listSessions(allocator: std.mem.Allocator, database: *db.Db, project_id: []const u8, branch_filter: ?[]const u8) !void {
     var buf: [4096]u8 = undefined;
     var fw = std.fs.File.stdout().writer(&buf);
     const out = &fw.interface;
 
     var stmt = try database.prepare(
-        "SELECT id, command, started_at, ended_at, exit_code, status FROM sessions WHERE project_id = ?1 ORDER BY id ASC;",
+        "SELECT id, command, started_at, ended_at, exit_code, status, branch FROM sessions WHERE project_id = ?1 AND (?2 IS NULL OR branch = ?2) ORDER BY id ASC;",
     );
     defer stmt.finalize();
     try stmt.bindText(1, project_id);
+    if (branch_filter) |b| try stmt.bindText(2, b) else try stmt.bindNull(2);
 
-    try out.writeAll("ID   COMMAND              STARTED             DURATION   CHANGES   STATUS\n");
+    try out.writeAll("ID   BRANCH        COMMAND              STARTED             DURATION   CHANGES   STATUS\n");
     var count: usize = 0;
     while (try stmt.step()) {
         const id = stmt.columnInt64(0);
@@ -27,6 +28,7 @@ pub fn listSessions(allocator: std.mem.Allocator, database: *db.Db, project_id: 
         const started = stmt.columnInt64(2);
         const ended = if (stmt.columnIsNull(3)) started else stmt.columnInt64(3);
         const status = stmt.columnText(5);
+        const branch = stmt.columnText(6);
 
         const started_s = try session.formatStarted(allocator, started);
         defer allocator.free(started_s);
@@ -41,6 +43,11 @@ pub fn listSessions(allocator: std.mem.Allocator, database: *db.Db, project_id: 
         const changes_s = try std.fmt.allocPrint(allocator, "{d}", .{changes.changed()});
         defer allocator.free(changes_s);
         try out.writeAll(id_s);
+        try out.writeAll("  ");
+        const branch_show = if (branch.len > 12) branch[0..12] else branch;
+        try out.writeAll(branch_show);
+        var bpad: usize = 12;
+        while (bpad > branch_show.len) : (bpad -= 1) try out.writeAll(" ");
         try out.writeAll("  ");
         try out.writeAll(cmd_show);
         var pad: usize = 20;

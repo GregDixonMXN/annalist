@@ -191,7 +191,125 @@ pub fn readIgnorePatterns(allocator: std.mem.Allocator, project_root: []const u8
     return out.toOwnedSlice(allocator);
 }
 
-/// Read [ui] port from config.toml. Default 8901; 0 is rejected (fixed port, v0.1).
+/// Read [branch] current from config.toml. Default "main" when absent.
+pub fn readCurrentBranch(allocator: std.mem.Allocator, project_root: []const u8) ![]u8 {
+    const config_path = try std.fs.path.join(allocator, &.{ project_root, CONFIG_DIR_NAME, CONFIG_FILE_NAME });
+    defer allocator.free(config_path);
+    const data = std.fs.cwd().readFileAlloc(allocator, config_path, 64 * 1024) catch
+        return allocator.dupe(u8, "main");
+    defer allocator.free(data);
+    var in_branch = false;
+    var lines = std.mem.splitScalar(u8, data, '\n');
+    while (lines.next()) |line| {
+        const t = std.mem.trim(u8, line, " \t\r");
+        if (t.len == 0 or t[0] == '#') continue;
+        if (t[0] == '[') {
+            in_branch = std.mem.eql(u8, t, "[branch]");
+            continue;
+        }
+        if (!in_branch) continue;
+        if (std.mem.startsWith(u8, t, "current")) {
+            const eq = std.mem.indexOfScalar(u8, t, '=') orelse continue;
+            const val = std.mem.trim(u8, t[eq + 1 ..], " \t");
+            const clean = std.mem.trim(u8, val, "\"'");
+            if (clean.len == 0) continue;
+            return allocator.dupe(u8, clean);
+        }
+    }
+    return allocator.dupe(u8, "main");
+}
+
+/// Write [branch] current, preserving all other config content.
+/// The name must already be validated (no quotes/newlines possible).
+pub fn writeCurrentBranch(allocator: std.mem.Allocator, project_root: []const u8, name: []const u8) !void {
+    const config_path = try std.fs.path.join(allocator, &.{ project_root, CONFIG_DIR_NAME, CONFIG_FILE_NAME });
+    defer allocator.free(config_path);
+    const data = try std.fs.cwd().readFileAlloc(allocator, config_path, 64 * 1024);
+    defer allocator.free(data);
+    var kept: std.ArrayList(u8) = .empty;
+    defer kept.deinit(allocator);
+    var in_branch = false;
+    var lines = std.mem.splitScalar(u8, data, '\n');
+    while (lines.next()) |line| {
+        const t = std.mem.trim(u8, line, " \t\r");
+        if (t.len > 0 and t[0] == '[') {
+            in_branch = std.mem.eql(u8, t, "[branch]");
+            if (!in_branch) {
+                try kept.appendSlice(allocator, line);
+                try kept.append(allocator, '\n');
+            }
+            continue;
+        }
+        if (in_branch) continue; // drop old [branch] body
+        try kept.appendSlice(allocator, line);
+        try kept.append(allocator, '\n');
+    }
+    try kept.appendSlice(allocator, "[branch]\n");
+    try kept.writer(allocator).print("current = \"{s}\"\n", .{name});
+    const f = try std.fs.createFileAbsolute(config_path, .{ .truncate = true });
+    defer f.close();
+    try f.writeAll(kept.items);
+ }
+
+/// Read [retention] max_age_days from config.toml. Default 0 (keep forever).
+pub fn readRetentionDays(allocator: std.mem.Allocator, project_root: []const u8) !i64 {
+    const config_path = try std.fs.path.join(allocator, &.{ project_root, CONFIG_DIR_NAME, CONFIG_FILE_NAME });
+    defer allocator.free(config_path);
+    const data = std.fs.cwd().readFileAlloc(allocator, config_path, 64 * 1024) catch return 0;
+    defer allocator.free(data);
+    var in_retention = false;
+    var lines = std.mem.splitScalar(u8, data, '\n');
+    while (lines.next()) |line| {
+        const t = std.mem.trim(u8, line, " \t\r");
+        if (t.len == 0 or t[0] == '#') continue;
+        if (t[0] == '[') {
+            in_retention = std.mem.eql(u8, t, "[retention]");
+            continue;
+        }
+        if (!in_retention) continue;
+        if (std.mem.startsWith(u8, t, "max_age_days")) {
+            const eq = std.mem.indexOfScalar(u8, t, '=') orelse continue;
+            const val = std.mem.trim(u8, t[eq + 1 ..], " \t\"'");
+            const days = std.fmt.parseInt(i64, val, 10) catch continue;
+            if (days < 0) continue;
+            return days;
+        }
+    }
+    return 0;
+}
+
+/// Write [retention] max_age_days, preserving all other config content.
+pub fn writeRetentionDays(allocator: std.mem.Allocator, project_root: []const u8, days: i64) !void {
+    const config_path = try std.fs.path.join(allocator, &.{ project_root, CONFIG_DIR_NAME, CONFIG_FILE_NAME });
+    defer allocator.free(config_path);
+    const data = try std.fs.cwd().readFileAlloc(allocator, config_path, 64 * 1024);
+    defer allocator.free(data);
+    var kept: std.ArrayList(u8) = .empty;
+    defer kept.deinit(allocator);
+    var in_retention = false;
+    var lines = std.mem.splitScalar(u8, data, '\n');
+    while (lines.next()) |line| {
+        const t = std.mem.trim(u8, line, " \t\r");
+        if (t.len > 0 and t[0] == '[') {
+            in_retention = std.mem.eql(u8, t, "[retention]");
+            if (!in_retention) {
+                try kept.appendSlice(allocator, line);
+                try kept.append(allocator, '\n');
+            }
+            continue;
+        }
+        if (in_retention) continue; // drop old [retention] body
+        try kept.appendSlice(allocator, line);
+        try kept.append(allocator, '\n');
+    }
+    try kept.appendSlice(allocator, "[retention]\n");
+    try kept.writer(allocator).print("max_age_days = {d}\n", .{days});
+    const f = try std.fs.createFileAbsolute(config_path, .{ .truncate = true });
+    defer f.close();
+    try f.writeAll(kept.items);
+}
+
+/// Read [ui] port from config.toml. Default 8901; 0 is rejected (fixed port).
 pub fn readUiPort(allocator: std.mem.Allocator, project_root: []const u8) !u16 {
     const config_path = try std.fs.path.join(allocator, &.{ project_root, CONFIG_DIR_NAME, CONFIG_FILE_NAME });
     defer allocator.free(config_path);

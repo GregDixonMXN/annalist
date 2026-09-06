@@ -4,7 +4,7 @@
 
 Blackbox observes what the operating system sees, rather than trusting the AI agent's own description of what it did.
 
-## Status: v0.2 working
+## Status: v0.3 working
 
 ## Requirements
 
@@ -32,9 +32,11 @@ zig build
 - `blackbox inspect <id> [--json] [--file <path>]` — metadata, timeline, before/after/diff per file
 - `blackbox diff <a> <b>` — per-session change sets (what each run created/modified/deleted/renamed)
 - `blackbox rewind <session> [seq] [--force]` — undo a session (pre-session state) or restore state at event seq; refuses on post-session changes without --force; not recorded
+- `blackbox export <session>|--all [--out <dir>]` — portable bundles (manifest.json + content blobs)
+- `blackbox branch [name]` — named workstreams; `sessions [--branch <name>]` filters
+- `blackbox policy [--set-max-age <days>]` / `blackbox prune [--dry-run] [--older-than <days>]` — retention
 - `blackbox doctor [--fix] [--gc]` — integrity check, stale-session repair, orphan-blob collection
 - `blackbox ui` — loopback-only dashboard + read-only JSON API
-- Planned: `branch`, `policy`, `export`
 
 ## Configuration (`blackbox.toml`… `.blackbox/config.toml`)
 

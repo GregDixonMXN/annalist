@@ -9,8 +9,11 @@ const views = @import("views.zig");
 const server = @import("server.zig");
 const doctor = @import("doctor.zig");
 const rewind = @import("rewind.zig");
+const bundle = @import("export.zig");
+const branch = @import("branch.zig");
+const policy = @import("policy.zig");
 
-pub const version_string = "0.2.0";
+pub const version_string = "0.3.0";
 
 const ProjectCtx = struct {
     root: []u8,
@@ -72,6 +75,14 @@ pub fn main() !void {
                 log.err("usage: blackbox rewind <session-id> [seq] [--force]", .{});
                 std.process.exit(2);
             },
+            cli.ParseError.MissingExportTarget => {
+                log.err("usage: blackbox export <session-id>|--all [--out <dir>]", .{});
+                std.process.exit(2);
+            },
+            cli.ParseError.InvalidArgs => {
+                log.err("invalid arguments (see `blackbox help`)", .{});
+                std.process.exit(2);
+            },
         }
     };
 
@@ -91,7 +102,7 @@ pub fn main() !void {
                 std.process.exit(1);
             };
         },
-        .sessions => {
+        .sessions => |opts| {
             var proj = try requireProject(allocator);
             defer proj.deinit(allocator);
             var database = session.openDb(allocator) catch |err| {
@@ -99,7 +110,7 @@ pub fn main() !void {
                 std.process.exit(1);
             };
             defer database.close();
-            views.listSessions(allocator, &database, proj.id) catch |err| {
+            views.listSessions(allocator, &database, proj.id, opts.branch) catch |err| {
                 log.err("sessions failed: {s}", .{@errorName(err)});
                 std.process.exit(1);
             };
@@ -161,8 +172,63 @@ pub fn main() !void {
                 std.process.exit(1);
             };
         },
+        .bundle => |opts| {
+            var proj = try requireProject(allocator);
+            defer proj.deinit(allocator);
+            var database = try session.openDb(allocator);
+            defer database.close();
+            bundle.runExport(allocator, &database, proj.id, proj.root, opts.id, opts.out, opts.all) catch |err| {
+                switch (err) {
+                    error.NoSuchSession => log.err("no such session in this project", .{}),
+                    error.BadSessionId => log.err("bad session id", .{}),
+                    error.BundleExists => log.err("bundle already exists (remove it or use --out)", .{}),
+                    error.BlobMissing => log.err("export failed: content missing from object store (run doctor)", .{}),
+                    error.MissingTarget => log.err("usage: blackbox export <session-id>|--all [--out <dir>]", .{}),
+                    else => log.err("export failed: {s}", .{@errorName(err)}),
+                }
+                std.process.exit(1);
+            };
+        },
+        .branch => |opts| {
+            var proj = try requireProject(allocator);
+            defer proj.deinit(allocator);
+            var database = try session.openDb(allocator);
+            defer database.close();
+            branch.runBranch(allocator, &database, proj.id, proj.root, opts.name) catch |err| {
+                switch (err) {
+                    error.BadBranchName => log.err("bad branch name (1-64 chars of A-Za-z0-9_.-)", .{}),
+                    else => log.err("branch failed: {s}", .{@errorName(err)}),
+                }
+                std.process.exit(1);
+            };
+        },
+        .policy => |opts| {
+            var proj = try requireProject(allocator);
+            defer proj.deinit(allocator);
+            policy.runPolicy(allocator, proj.root, opts.set_max_age) catch |err| {
+                switch (err) {
+                    error.BadRetention => log.err("bad retention (0-36500 days)", .{}),
+                    else => log.err("policy failed: {s}", .{@errorName(err)}),
+                }
+                std.process.exit(1);
+            };
+        },
+        .prune => |opts| {
+            var proj = try requireProject(allocator);
+            defer proj.deinit(allocator);
+            var database = try session.openDb(allocator);
+            defer database.close();
+            policy.runPrune(allocator, &database, proj.id, proj.root, opts.older_than, opts.dry_run) catch |err| {
+                switch (err) {
+                    error.BadRetention => log.err("bad --older-than value (positive days)", .{}),
+                    error.NeedRetention => log.err("no retention configured; pass --older-than <days>", .{}),
+                    else => log.err("prune failed: {s}", .{@errorName(err)}),
+                }
+                std.process.exit(1);
+            };
+        },
         .future => |name| {
-            log.err("'{s}' is on the roadmap but not implemented in v0.2", .{name});
+            log.err("'{s}' is on the roadmap but not implemented in v0.3", .{name});
             std.process.exit(3);
         },
         .rewind => |opts| {

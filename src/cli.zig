@@ -9,6 +9,8 @@ pub const ParseError = error{
     MissingSessionId,
     MissingDiffIds,
     MissingRewindTarget,
+    MissingExportTarget,
+    InvalidArgs,
 };
 
 pub const Command = union(enum) {
@@ -16,17 +18,38 @@ pub const Command = union(enum) {
     version,
     init,
     run: RunOpts,
-    sessions,
+    sessions: SessionsOpts,
     inspect: InspectOpts,
     ui,
     doctor: DoctorOpts,
     diff: DiffOpts,
     rewind: RewindOpts,
+    bundle: ExportOpts,
+    branch: BranchOpts,
+    policy: PolicyOpts,
+    prune: PruneOpts,
     future: []const u8,
 };
 
 pub const RunOpts = struct {
     child_argv: []const []const u8,
+};
+
+pub const SessionsOpts = struct {
+    branch: ?[]const u8 = null,
+};
+
+pub const BranchOpts = struct {
+    name: ?[]const u8 = null,
+};
+
+pub const PolicyOpts = struct {
+    set_max_age: ?[]const u8 = null,
+};
+
+pub const PruneOpts = struct {
+    older_than: ?[]const u8 = null,
+    dry_run: bool = false,
 };
 
 pub const InspectOpts = struct {
@@ -51,12 +74,14 @@ pub const RewindOpts = struct {
     force: bool = false,
 };
 
-/// Commands reserved for post-v0.1. Listed so help stays honest.
-const future_commands = [_][]const u8{
-    "branch",
-    "policy",
-    "export",
+pub const ExportOpts = struct {
+    id: ?[]const u8 = null,
+    out: ?[]const u8 = null,
+    all: bool = false,
 };
+
+/// Commands reserved for later. Listed so help stays honest.
+const future_commands = [_][]const u8{};
 
 pub fn parse(args: []const []const u8) ParseError!Command {
     if (args.len < 2) return ParseError.NoCommand;
@@ -67,7 +92,57 @@ pub fn parse(args: []const []const u8) ParseError!Command {
     if (std.mem.eql(u8, name, "version") or std.mem.eql(u8, name, "--version") or std.mem.eql(u8, name, "-V"))
         return .version;
     if (std.mem.eql(u8, name, "init")) return .init;
-    if (std.mem.eql(u8, name, "sessions")) return .sessions;
+    if (std.mem.eql(u8, name, "sessions")) {
+        var branch: ?[]const u8 = null;
+        var i: usize = 2;
+        while (i < args.len) : (i += 1) {
+            if (std.mem.eql(u8, args[i], "--branch")) {
+                i += 1;
+                if (i >= args.len) return ParseError.InvalidArgs;
+                branch = args[i];
+            } else {
+                return ParseError.InvalidArgs;
+            }
+        }
+        return Command{ .sessions = .{ .branch = branch } };
+    }
+    if (std.mem.eql(u8, name, "branch")) {
+        if (args.len > 3) return ParseError.InvalidArgs;
+        const nm: ?[]const u8 = if (args.len == 3) args[2] else null;
+        return Command{ .branch = .{ .name = nm } };
+    }
+    if (std.mem.eql(u8, name, "policy")) {
+        var set_age: ?[]const u8 = null;
+        var i: usize = 2;
+        while (i < args.len) : (i += 1) {
+            if (std.mem.eql(u8, args[i], "--set-max-age")) {
+                i += 1;
+                if (i >= args.len) return ParseError.InvalidArgs;
+                set_age = args[i];
+            } else {
+                return ParseError.InvalidArgs;
+            }
+        }
+        return Command{ .policy = .{ .set_max_age = set_age } };
+    }
+    if (std.mem.eql(u8, name, "prune")) {
+        var older: ?[]const u8 = null;
+        var dry = false;
+        var i: usize = 2;
+        while (i < args.len) : (i += 1) {
+            const a = args[i];
+            if (std.mem.eql(u8, a, "--dry-run")) {
+                dry = true;
+            } else if (std.mem.eql(u8, a, "--older-than")) {
+                i += 1;
+                if (i >= args.len) return ParseError.InvalidArgs;
+                older = args[i];
+            } else {
+                return ParseError.InvalidArgs;
+            }
+        }
+        return Command{ .prune = .{ .older_than = older, .dry_run = dry } };
+    }
     if (std.mem.eql(u8, name, "ui")) return .ui;
     if (std.mem.eql(u8, name, "doctor")) {
         var fix = false;
@@ -81,6 +156,28 @@ pub fn parse(args: []const []const u8) ParseError!Command {
     if (std.mem.eql(u8, name, "diff")) {
         if (args.len < 4) return ParseError.MissingDiffIds;
         return Command{ .diff = .{ .a = args[2], .b = args[3] } };
+    }
+    if (std.mem.eql(u8, name, "export")) {
+        var id: ?[]const u8 = null;
+        var out: ?[]const u8 = null;
+        var all = false;
+        var i: usize = 2;
+        while (i < args.len) : (i += 1) {
+            const a = args[i];
+            if (std.mem.eql(u8, a, "--all")) {
+                all = true;
+            } else if (std.mem.eql(u8, a, "--out")) {
+                i += 1;
+                if (i >= args.len) return ParseError.MissingExportTarget;
+                out = args[i];
+            } else if (id == null and !all) {
+                id = a;
+            } else {
+                return ParseError.MissingExportTarget;
+            }
+        }
+        if (!all and id == null) return ParseError.MissingExportTarget;
+        return Command{ .bundle = .{ .id = id, .out = out, .all = all } };
     }
     if (std.mem.eql(u8, name, "rewind")) {
         if (args.len < 3) return ParseError.MissingRewindTarget;
@@ -154,16 +251,18 @@ pub fn printHelp() !void {
         \\Usage:
         \\  blackbox init                        initialize this project
         \\  blackbox run -- <command> [args]     record a session
-        \\  blackbox sessions                    list recorded sessions
+        \\  blackbox sessions [--branch <name>]    list recorded sessions
+        \\  blackbox branch [name]               list or switch workstream
         \\  blackbox inspect <session-id>        inspect a session
         \\  blackbox diff <a> <b>                  compare two sessions
         \\  blackbox rewind <session> [seq] [--force]  restore files to a recorded point
+        \\  blackbox export <session>|--all [--out <dir>]  portable session bundle(s)
+        \\  blackbox policy [--set-max-age <days>]  show/set retention
+        \\  blackbox prune [--dry-run] [--older-than <days>]  delete old sessions
         \\  blackbox doctor [--fix] [--gc]         health check + repair
         \\  blackbox ui                          localhost dashboard
         \\  blackbox version                     print version
         \\  blackbox help                        this help
-        \\
-        \\Planned (not in v0.2): branch, policy, export
         \\
         \\Examples:
         \\  blackbox run -- codex

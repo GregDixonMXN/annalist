@@ -128,6 +128,12 @@ pub const Db = struct {
             \\ALTER TABLE events ADD COLUMN prev_path TEXT NOT NULL DEFAULT '';
             ,
         },
+        .{
+            .version = 4,
+            .sql =
+            \\ALTER TABLE sessions ADD COLUMN branch TEXT NOT NULL DEFAULT 'main';
+            ,
+        },
     };
 
     fn appliedVersions(self: *Db, allocator: std.mem.Allocator) DbError!std.AutoHashMap(u32, void) {

@@ -223,7 +223,7 @@ pub fn runSession(
     const started = std.time.milliTimestamp();
 
     var ins = try database.prepare(
-        "INSERT INTO sessions(project_id, command, argv_json, cwd, started_at, status) VALUES (?1, ?2, ?3, ?4, ?5, 'running');",
+        "INSERT INTO sessions(project_id, command, argv_json, cwd, started_at, status, branch) VALUES (?1, ?2, ?3, ?4, ?5, 'running', ?6);",
     );
     defer ins.finalize();
     try ins.bindText(1, project_id);
@@ -231,6 +231,9 @@ pub fn runSession(
     try ins.bindText(3, argv_json);
     try ins.bindText(4, cwd);
     try ins.bindInt64(5, started);
+    const branch = try config.readCurrentBranch(allocator, project_root);
+    defer allocator.free(branch);
+    try ins.bindText(6, branch);
     _ = try ins.step();
     const session_id = database.lastRowId();
 
