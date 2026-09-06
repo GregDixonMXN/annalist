@@ -27,7 +27,7 @@ const ProjectCtx = struct {
 
 fn requireProject(allocator: std.mem.Allocator) !ProjectCtx {
     const root = try config.findProjectRoot(allocator) orelse {
-        log.err("not a annalist project (no .annalist/ found). Run `annalist init` first.", .{});
+        log.err("not an annalist project (no .annalist/ found). Run `annalist init` first.", .{});
         std.process.exit(4);
     };
     errdefer allocator.free(root);

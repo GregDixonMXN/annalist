@@ -38,7 +38,11 @@ zig build
 - `annalist doctor [--fix] [--gc]` — integrity check, stale-session repair, orphan-blob collection
 - `annalist ui` — loopback-only dashboard + read-only JSON API
 
-## Configuration (`annalist.toml`… `.annalist/config.toml`)
+## Configuration (`.annalist/config.toml`)
+
+Migrating from blackbox: `mv .blackbox .annalist` in the project, and move
+`~/.local/share/blackbox/blackbox.db` to `~/.local/share/annalist/annalist.db`.
+History (including branch tags) carries over.
 
 ```toml
 [ignore]
