@@ -1,4 +1,4 @@
-// Structured internal logging. BLACKBOX_LOG=debug|info|warn|error (default warn).
+// Structured internal logging. ANNALIST_LOG=debug|info|warn|error (default warn).
 // Normal command output goes to stdout; logs go to stderr.
 
 const std = @import("std");
@@ -13,7 +13,7 @@ pub const Level = enum(u8) {
 var current_level: Level = .warn;
 
 pub fn init() void {
-    const v = std.posix.getenv("BLACKBOX_LOG") orelse return;
+    const v = std.posix.getenv("ANNALIST_LOG") orelse return;
     if (std.ascii.eqlIgnoreCase(v, "debug")) current_level = .debug;
     if (std.ascii.eqlIgnoreCase(v, "info")) current_level = .info;
     if (std.ascii.eqlIgnoreCase(v, "warn")) current_level = .warn;
@@ -48,7 +48,7 @@ fn logLine(level_name: []const u8, comptime fmt: []const u8, args: anytype) void
     var buf: [2048]u8 = undefined;
     var fw = std.fs.File.stderr().writer(&buf);
     const stderr = &fw.interface;
-    stderr.print("[blackbox:{s}] ", .{level_name}) catch return;
+    stderr.print("[annalist:{s}] ", .{level_name}) catch return;
     stderr.print(fmt ++ "\n", args) catch return;
     stderr.flush() catch return;
 }

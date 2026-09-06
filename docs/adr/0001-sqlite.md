@@ -2,7 +2,7 @@
 
 ## Context
 
-Blackbox needs crash-resistant local storage for sessions, events, projects,
+Annalist needs crash-resistant local storage for sessions, events, projects,
 and file states. Candidates: SQLite, append-only JSONL, embedded KV (RocksDB-style).
 
 ## Decision

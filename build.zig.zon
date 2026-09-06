@@ -1,7 +1,7 @@
 .{
-    .name = .blackbox,
+    .name = .annalist,
     .version = "0.1.0",
-    .fingerprint = 0xbd0f6e760d467c50,
+    .fingerprint = 0x51ca5f279f346cc1,
     .minimum_zig_version = "0.15.0",
     .paths = .{
         "build.zig",

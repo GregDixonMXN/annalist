@@ -7,7 +7,7 @@ on every change, without ballooning disk, and without ever risking user data.
 
 ## Decision
 
-Content-addressed blobs under `.blackbox/objects/xx/rest` (SHA-256):
+Content-addressed blobs under `.annalist/objects/xx/rest` (SHA-256):
 
 - Session start seeds blobs for all files under the size limit (deduplicated).
 - Each change event stores after-blobs; before-blobs resolve from the seed.
@@ -25,5 +25,5 @@ Content-addressed blobs under `.blackbox/objects/xx/rest` (SHA-256):
 
 - Every observed version is retrievable today (`inspect --file` proves it);
   rewind later is a checkout operation, not a research project.
-- `.blackbox/` grows with unique content; `blackbox doctor` (future) can GC
+- `.annalist/` grows with unique content; `annalist doctor` (future) can GC
   unreferenced blobs.

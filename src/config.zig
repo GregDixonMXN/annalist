@@ -1,11 +1,11 @@
-// Project initialization: `blackbox init`.
-// Layout: .blackbox/config.toml in the project (identity only).
-// Large histories live in the user-level data dir (~/.local/share/blackbox/).
+// Project initialization: `annalist init`.
+// Layout: .annalist/config.toml in the project (identity only).
+// Large histories live in the user-level data dir (~/.local/share/annalist/).
 
 const std = @import("std");
 const log = @import("log.zig");
 
-pub const CONFIG_DIR_NAME = ".blackbox";
+pub const CONFIG_DIR_NAME = ".annalist";
 pub const CONFIG_FILE_NAME = "config.toml";
 
 pub const ConfigError = error{
@@ -13,7 +13,7 @@ pub const ConfigError = error{
     ConfigCorrupt,
 };
 
-/// Returns the project root: nearest ancestor (incl. cwd) containing .blackbox/.
+/// Returns the project root: nearest ancestor (incl. cwd) containing .annalist/.
 pub fn findProjectRoot(allocator: std.mem.Allocator) !?[]u8 {
     const cwd = try std.process.getCwdAlloc(allocator);
     defer allocator.free(cwd);
@@ -41,10 +41,10 @@ pub fn findProjectRoot(allocator: std.mem.Allocator) !?[]u8 {
 
 fn userDataDir(allocator: std.mem.Allocator) ![]u8 {
     if (std.posix.getenv("XDG_DATA_HOME")) |xdg| {
-        return std.fs.path.join(allocator, &.{ xdg, "blackbox" });
+        return std.fs.path.join(allocator, &.{ xdg, "annalist" });
     }
     const home = std.posix.getenv("HOME") orelse return error.MissingHome;
-    return std.fs.path.join(allocator, &.{ home, ".local", "share", "blackbox" });
+    return std.fs.path.join(allocator, &.{ home, ".local", "share", "annalist" });
 }
 
 fn newProjectId(allocator: std.mem.Allocator) ![]u8 {
@@ -73,7 +73,7 @@ pub fn runInit(allocator: std.mem.Allocator) !void {
 
     if (try findProjectRoot(allocator)) |root| {
         defer allocator.free(root);
-        try out.print("Blackbox already initialized in {s}\n", .{root});
+        try out.print("Annalist already initialized in {s}\n", .{root});
         try out.flush();
         return;
     }
@@ -98,7 +98,7 @@ pub fn runInit(allocator: std.mem.Allocator) !void {
     var file_buf: [1024]u8 = undefined;
     var file_writer = file.writer(&file_buf);
     try file_writer.interface.print(
-        \\# Blackbox project config. Identity only — history lives in the user data dir.
+        \\# Annalist project config. Identity only — history lives in the user data dir.
         \\project_id = "{s}"
         \\version = 1
         \\
@@ -113,12 +113,12 @@ pub fn runInit(allocator: std.mem.Allocator) !void {
         created.close();
     }
 
-    try out.print("Initialized blackbox project {s} in {s}\n", .{ project_id, dir_path });
+    try out.print("Initialized annalist project {s} in {s}\n", .{ project_id, dir_path });
     try out.flush();
     log.info("project {s} initialized", .{project_id});
 }
 
-/// Read project_id from .blackbox/config.toml under root.
+/// Read project_id from .annalist/config.toml under root.
 pub fn readProjectId(allocator: std.mem.Allocator, project_root: []const u8) ![]u8 {
     const config_path = try std.fs.path.join(allocator, &.{ project_root, CONFIG_DIR_NAME, CONFIG_FILE_NAME });
     defer allocator.free(config_path);

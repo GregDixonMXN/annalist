@@ -1,4 +1,4 @@
-// Content-addressed blob store: <project>/.blackbox/objects/xx/rest.
+// Content-addressed blob store: <project>/.annalist/objects/xx/rest.
 // Idempotent puts; identical content stored once. Never touches source files.
 
 const std = @import("std");
@@ -7,13 +7,13 @@ const hash = @import("hash.zig");
 pub const OBJECTS_DIR = "objects";
 
 pub fn objectsDir(allocator: std.mem.Allocator, project_root: []const u8) ![]u8 {
-    return std.fs.path.join(allocator, &.{ project_root, ".blackbox", OBJECTS_DIR });
+    return std.fs.path.join(allocator, &.{ project_root, ".annalist", OBJECTS_DIR });
 }
 
 fn blobPath(allocator: std.mem.Allocator, project_root: []const u8, hex: *const [hash.HASH_HEX_LEN]u8) ![]u8 {
     return std.fs.path.join(allocator, &.{
         project_root,
-        ".blackbox",
+        ".annalist",
         OBJECTS_DIR,
         hex[0..2],
         hex[2..],
@@ -67,7 +67,7 @@ test "blob round trip + dedup" {
     const root = try tmp.dir.realpathAlloc(testing.allocator, ".");
     defer testing.allocator.free(root);
 
-    // .blackbox/objects must exist for exclusive create of subdirs.
+    // .annalist/objects must exist for exclusive create of subdirs.
     const h1 = try put(testing.allocator, root, "hello world");
     defer testing.allocator.free(h1);
     const h2 = try put(testing.allocator, root, "hello world");

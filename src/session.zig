@@ -165,13 +165,13 @@ fn argvJson(allocator: std.mem.Allocator, argv: []const []const u8) ![]u8 {
 
 pub fn dbPath(allocator: std.mem.Allocator) ![:0]u8 {
     const base = if (std.posix.getenv("XDG_DATA_HOME")) |xdg|
-        try std.fs.path.join(allocator, &.{ xdg, "blackbox" })
+        try std.fs.path.join(allocator, &.{ xdg, "annalist" })
     else if (std.posix.getenv("HOME")) |home|
-        try std.fs.path.join(allocator, &.{ home, ".local", "share", "blackbox" })
+        try std.fs.path.join(allocator, &.{ home, ".local", "share", "annalist" })
     else
         return error.MissingHome;
     defer allocator.free(base);
-    return std.fs.path.joinZ(allocator, &.{ base, "blackbox.db" });
+    return std.fs.path.joinZ(allocator, &.{ base, "annalist.db" });
 }
 
 pub fn openDb(allocator: std.mem.Allocator) !db.Db {
@@ -418,7 +418,7 @@ fn printRecordingHeader(session_id: i64, command: []const u8, project_root: []co
     const id_s = padId(gpa, session_id) catch "?";
     defer if (!std.mem.eql(u8, id_s, "?")) gpa.free(id_s);
     out.print(
-        \\● Blackbox recording
+        \\● Annalist recording
         \\
         \\  Session   {s}
         \\  Command   {s}
@@ -457,7 +457,7 @@ fn printSummary(
         \\  Status         {s}
         \\
         \\Inspect:
-        \\  blackbox inspect {s}
+        \\  annalist inspect {s}
         \\
     , .{ dur, counts.changed(), total, exit_code, status.name(), id_s }) catch return;
     out.flush() catch return;

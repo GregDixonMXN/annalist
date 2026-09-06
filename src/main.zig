@@ -1,4 +1,4 @@
-// Blackbox: local-first flight recorder for autonomous coding agents.
+// Annalist: local-first flight recorder for autonomous coding agents.
 
 const std = @import("std");
 const cli = @import("cli.zig");
@@ -27,12 +27,12 @@ const ProjectCtx = struct {
 
 fn requireProject(allocator: std.mem.Allocator) !ProjectCtx {
     const root = try config.findProjectRoot(allocator) orelse {
-        log.err("not a blackbox project (no .blackbox/ found). Run `blackbox init` first.", .{});
+        log.err("not a annalist project (no .annalist/ found). Run `annalist init` first.", .{});
         std.process.exit(4);
     };
     errdefer allocator.free(root);
     const id = config.readProjectId(allocator, root) catch {
-        log.err("project config unreadable. Re-run `blackbox init`?", .{});
+        log.err("project config unreadable. Re-run `annalist init`?", .{});
         std.process.exit(4);
     };
     return .{ .root = root, .id = id };
@@ -60,27 +60,27 @@ pub fn main() !void {
                 std.process.exit(2);
             },
             cli.ParseError.MissingSeparator => {
-                log.err("usage: blackbox run -- <command> [args...]", .{});
+                log.err("usage: annalist run -- <command> [args...]", .{});
                 std.process.exit(2);
             },
             cli.ParseError.MissingSessionId => {
-                log.err("usage: blackbox inspect <session-id> [--json]", .{});
+                log.err("usage: annalist inspect <session-id> [--json]", .{});
                 std.process.exit(2);
             },
             cli.ParseError.MissingDiffIds => {
-                log.err("usage: blackbox diff <session-a> <session-b>", .{});
+                log.err("usage: annalist diff <session-a> <session-b>", .{});
                 std.process.exit(2);
             },
             cli.ParseError.MissingRewindTarget => {
-                log.err("usage: blackbox rewind <session-id> [seq] [--force]", .{});
+                log.err("usage: annalist rewind <session-id> [seq] [--force]", .{});
                 std.process.exit(2);
             },
             cli.ParseError.MissingExportTarget => {
-                log.err("usage: blackbox export <session-id>|--all [--out <dir>]", .{});
+                log.err("usage: annalist export <session-id>|--all [--out <dir>]", .{});
                 std.process.exit(2);
             },
             cli.ParseError.InvalidArgs => {
-                log.err("invalid arguments (see `blackbox help`)", .{});
+                log.err("invalid arguments (see `annalist help`)", .{});
                 std.process.exit(2);
             },
         }
@@ -183,7 +183,7 @@ pub fn main() !void {
                     error.BadSessionId => log.err("bad session id", .{}),
                     error.BundleExists => log.err("bundle already exists (remove it or use --out)", .{}),
                     error.BlobMissing => log.err("export failed: content missing from object store (run doctor)", .{}),
-                    error.MissingTarget => log.err("usage: blackbox export <session-id>|--all [--out <dir>]", .{}),
+                    error.MissingTarget => log.err("usage: annalist export <session-id>|--all [--out <dir>]", .{}),
                     else => log.err("export failed: {s}", .{@errorName(err)}),
                 }
                 std.process.exit(1);

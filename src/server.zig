@@ -42,10 +42,10 @@ pub const Server = struct {
         const addr = try std.net.Address.parseIp4("127.0.0.1", port);
         var net_server = try addr.listen(.{ .reuse_address = true });
         defer net_server.deinit();
-        log.info("blackbox ui on http://127.0.0.1:{d} (loopback only)", .{port});
+        log.info("annalist ui on http://127.0.0.1:{d} (loopback only)", .{port});
         var out_buf: [512]u8 = undefined;
         var fw = std.fs.File.stdout().writer(&out_buf);
-        try fw.interface.print("Blackbox dashboard: http://127.0.0.1:{d}\n", .{port});
+        try fw.interface.print("Annalist dashboard: http://127.0.0.1:{d}\n", .{port});
         try fw.interface.flush();
         while (true) {
             const conn = net_server.accept() catch |err| {

@@ -1,4 +1,4 @@
-// `blackbox policy` + `blackbox prune`: retention management.
+// `annalist policy` + `annalist prune`: retention management.
 // policy shows [retention] max_age_days (0 = keep forever);
 // policy --set-max-age <days> updates it.
 // prune [--dry-run] [--older-than <days>] deletes finalized sessions older
@@ -119,7 +119,7 @@ pub fn runPrune(
                 }
             }
         }
-        const objects = try std.fs.path.join(allocator, &.{ project_root, ".blackbox", "objects" });
+        const objects = try std.fs.path.join(allocator, &.{ project_root, ".annalist", "objects" });
         defer allocator.free(objects);
         if (std.fs.openDirAbsolute(objects, .{ .iterate = true })) |dir| {
             var d = dir;

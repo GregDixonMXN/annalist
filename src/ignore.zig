@@ -1,11 +1,11 @@
 // Ignore patterns: subset of glob supporting `*` (within a segment),
-// trailing `/**` (whole subtree), and exact paths. Always ignores `.blackbox`.
+// trailing `/**` (whole subtree), and exact paths. Always ignores `.annalist`.
 
 const std = @import("std");
 
 pub const default_ignores = [_][]const u8{
     ".git/**",
-    ".blackbox/**",
+    ".annalist/**",
     "node_modules/**",
     "zig-cache/**",
     ".zig-cache/**",
@@ -67,8 +67,8 @@ pub fn matches(pattern: []const u8, rel_path: []const u8) bool {
 }
 
 pub fn isIgnored(patterns: []const []const u8, rel_path: []const u8) bool {
-    if (matches(".blackbox/**", rel_path)) return true;
-    if (std.mem.eql(u8, rel_path, ".blackbox")) return true;
+    if (matches(".annalist/**", rel_path)) return true;
+    if (std.mem.eql(u8, rel_path, ".annalist")) return true;
     for (patterns) |p| {
         if (matches(p, rel_path)) return true;
     }
@@ -85,7 +85,7 @@ test "ignore matching" {
     try testing.expect(!matches("*.log", "a/debug.log"));
     try testing.expect(matches("build/**", "build"));
     try testing.expect(!matches("dist/**", "src/dist/file"));
-    try testing.expect(isIgnored(&default_ignores, ".blackbox/objects/ab"));
+    try testing.expect(isIgnored(&default_ignores, ".annalist/objects/ab"));
     try testing.expect(isIgnored(&default_ignores, "zig-out/bin/x"));
     try testing.expect(!isIgnored(&default_ignores, "src/main.zig"));
 }

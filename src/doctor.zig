@@ -1,4 +1,4 @@
-// `blackbox doctor`: health checks + repair for the local installation.
+// `annalist doctor`: health checks + repair for the local installation.
 // - stale "running" sessions (supervisor died without finalizing)
 // - SQLite integrity_check
 // - events referencing missing blobs (data loss warning)
@@ -107,7 +107,7 @@ pub fn runDoctor(
         }
 
         // Orphan blobs: present but unreferenced.
-        const objects = try std.fs.path.join(allocator, &.{ project_root, ".blackbox", "objects" });
+        const objects = try std.fs.path.join(allocator, &.{ project_root, ".annalist", "objects" });
         defer allocator.free(objects);
         var total_orphans: i64 = 0;
         var total_bytes: i64 = 0;
@@ -164,7 +164,7 @@ fn blobExists(project_root: []const u8, hex: []const u8) bool {
     var path_buf: [512]u8 = undefined;
     const path = std.fmt.bufPrint(
         &path_buf,
-        "{s}/.blackbox/objects/{s}/{s}",
+        "{s}/.annalist/objects/{s}/{s}",
         .{ project_root, hex[0..2], hex[2..] },
     ) catch return false;
     std.fs.accessAbsolute(path, .{}) catch return false;

@@ -1,4 +1,4 @@
-// `blackbox export`: write portable session bundles.
+// `annalist export`: write portable session bundles.
 // `export <id> [--out <dir>]` or `export --all [--out <dir>]`.
 // Layout: <out>/manifest.json + <out>/blobs/xx/rest (sharded like the store).
 // manifest.json: {"format":1,"project_id","session":{...},"events":[...]}
@@ -176,7 +176,7 @@ pub fn runExport(
     const out = &fw.interface;
 
     if (export_all) {
-        const base = if (out_opt) |o| try allocator.dupe(u8, o) else try std.fmt.allocPrint(allocator, "blackbox-export-all", .{});
+        const base = if (out_opt) |o| try allocator.dupe(u8, o) else try std.fmt.allocPrint(allocator, "annalist-export-all", .{});
         defer allocator.free(base);
         var q = try database.prepare(
             "SELECT id FROM sessions WHERE project_id = ?1 ORDER BY id ASC;",
@@ -203,7 +203,7 @@ pub fn runExport(
     const sid = std.fmt.parseInt(i64, id_t, 10) catch return error.BadSessionId;
     const pad = try session.padId(allocator, sid);
     defer allocator.free(pad);
-    const dest = if (out_opt) |o| try allocator.dupe(u8, o) else try std.fmt.allocPrint(allocator, "blackbox-export-{s}", .{pad});
+    const dest = if (out_opt) |o| try allocator.dupe(u8, o) else try std.fmt.allocPrint(allocator, "annalist-export-{s}", .{pad});
     defer allocator.free(dest);
     const blobs = try exportOne(allocator, database, project_id, project_root, sid, dest);
     try out.print("exported session {s} ({d} blob(s)) to {s}/\n", .{ pad, blobs, dest });

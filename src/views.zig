@@ -1,4 +1,4 @@
-// `blackbox sessions` and `blackbox inspect` rendering.
+// `annalist sessions` and `annalist inspect` rendering.
 
 const std = @import("std");
 const db = @import("db.zig");
@@ -67,7 +67,7 @@ pub fn listSessions(allocator: std.mem.Allocator, database: *db.Db, project_id: 
         count += 1;
     }
     if (count == 0) {
-        try out.writeAll("(no sessions yet — run `blackbox run -- <command>`)\n");
+        try out.writeAll("(no sessions yet — run `annalist run -- <command>`)\n");
     }
     try out.flush();
 }
@@ -126,7 +126,7 @@ pub fn inspectSession(
     const total = events.countAll(database, id) catch 0;
 
     try out.print(
-        \\Blackbox Session {s}
+        \\Annalist Session {s}
         \\
         \\Command:        {s}
         \\Working dir:    {s}

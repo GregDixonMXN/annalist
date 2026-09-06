@@ -237,7 +237,7 @@ pub fn printVersion(version: []const u8) !void {
     var buf: [256]u8 = undefined;
     var fw = std.fs.File.stdout().writer(&buf);
     const out = &fw.interface;
-    try out.print("blackbox {s}\n", .{version});
+    try out.print("annalist {s}\n", .{version});
     try out.flush();
 }
 
@@ -246,27 +246,27 @@ pub fn printHelp() !void {
     var fw = std.fs.File.stdout().writer(&buf);
     const out = &fw.interface;
     try out.writeAll(
-        \\Blackbox — local-first flight recorder for autonomous coding agents.
+        \\Annalist — local-first flight recorder for autonomous coding agents.
         \\
         \\Usage:
-        \\  blackbox init                        initialize this project
-        \\  blackbox run -- <command> [args]     record a session
-        \\  blackbox sessions [--branch <name>]    list recorded sessions
-        \\  blackbox branch [name]               list or switch workstream
-        \\  blackbox inspect <session-id>        inspect a session
-        \\  blackbox diff <a> <b>                  compare two sessions
-        \\  blackbox rewind <session> [seq] [--force]  restore files to a recorded point
-        \\  blackbox export <session>|--all [--out <dir>]  portable session bundle(s)
-        \\  blackbox policy [--set-max-age <days>]  show/set retention
-        \\  blackbox prune [--dry-run] [--older-than <days>]  delete old sessions
-        \\  blackbox doctor [--fix] [--gc]         health check + repair
-        \\  blackbox ui                          localhost dashboard
-        \\  blackbox version                     print version
-        \\  blackbox help                        this help
+        \\  annalist init                        initialize this project
+        \\  annalist run -- <command> [args]     record a session
+        \\  annalist sessions [--branch <name>]    list recorded sessions
+        \\  annalist branch [name]               list or switch workstream
+        \\  annalist inspect <session-id>        inspect a session
+        \\  annalist diff <a> <b>                  compare two sessions
+        \\  annalist rewind <session> [seq] [--force]  restore files to a recorded point
+        \\  annalist export <session>|--all [--out <dir>]  portable session bundle(s)
+        \\  annalist policy [--set-max-age <days>]  show/set retention
+        \\  annalist prune [--dry-run] [--older-than <days>]  delete old sessions
+        \\  annalist doctor [--fix] [--gc]         health check + repair
+        \\  annalist ui                          localhost dashboard
+        \\  annalist version                     print version
+        \\  annalist help                        this help
         \\
         \\Examples:
-        \\  blackbox run -- codex
-        \\  blackbox run -- claude --dangerously-skip-permissions -p "fix tests"
+        \\  annalist run -- codex
+        \\  annalist run -- claude --dangerously-skip-permissions -p "fix tests"
         \\
     );
     try out.flush();
@@ -275,24 +275,24 @@ pub fn printHelp() !void {
 const testing = std.testing;
 
 test "parse run with separator" {
-    const args = [_][]const u8{ "blackbox", "run", "--", "codex", "-x" };
+    const args = [_][]const u8{ "annalist", "run", "--", "codex", "-x" };
     const cmd = try parse(&args);
     try testing.expect(cmd == .run);
     try testing.expectEqual(@as(usize, 2), cmd.run.child_argv.len);
 }
 
 test "parse run without separator fails" {
-    const args = [_][]const u8{ "blackbox", "run", "codex" };
+    const args = [_][]const u8{ "annalist", "run", "codex" };
     try testing.expectError(ParseError.MissingSeparator, parse(&args));
 }
 
 test "parse inspect requires id" {
-    const args = [_][]const u8{ "blackbox", "inspect" };
+    const args = [_][]const u8{ "annalist", "inspect" };
     try testing.expectError(ParseError.MissingSessionId, parse(&args));
 }
 
 test "future commands route to roadmap stub" {
-    const args = [_][]const u8{ "blackbox", "rewind" };
+    const args = [_][]const u8{ "annalist", "rewind" };
     const cmd = try parse(&args);
     try testing.expect(cmd == .future);
 }

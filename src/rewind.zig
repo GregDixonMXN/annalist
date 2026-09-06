@@ -1,4 +1,4 @@
-// `blackbox rewind <session> [seq] [--force]`: restore the working tree
+// `annalist rewind <session> [seq] [--force]`: restore the working tree
 // to a recorded point.
 //
 // Full rewind (no seq) undoes the whole session: every path the session

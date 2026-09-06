@@ -1,8 +1,8 @@
-# Blackbox
+# Annalist
 
-> Blackbox is a local-first flight recorder for autonomous coding agents.
+> Annalist is a local-first flight recorder for autonomous coding agents.
 
-Blackbox observes what the operating system sees, rather than trusting the AI agent's own description of what it did.
+Annalist observes what the operating system sees, rather than trusting the AI agent's own description of what it did.
 
 ## Status: v0.3 working
 
@@ -16,29 +16,29 @@ Blackbox observes what the operating system sees, rather than trusting the AI ag
 
 ```bash
 zig build
-./zig-out/bin/blackbox init
-./zig-out/bin/blackbox run -- sh -c "echo hello > hello.txt"
-./zig-out/bin/blackbox sessions
-./zig-out/bin/blackbox inspect 001
-./zig-out/bin/blackbox inspect 001 --file hello.txt
-./zig-out/bin/blackbox ui   # http://127.0.0.1:8901
+./zig-out/bin/annalist init
+./zig-out/bin/annalist run -- sh -c "echo hello > hello.txt"
+./zig-out/bin/annalist sessions
+./zig-out/bin/annalist inspect 001
+./zig-out/bin/annalist inspect 001 --file hello.txt
+./zig-out/bin/annalist ui   # http://127.0.0.1:8901
 ```
 
 ## Commands
 
-- `blackbox init` — initialize `.blackbox/` (identity only; history lives in `~/.local/share/blackbox/`)
-- `blackbox run -- <command>` — record a session (inherits stdio, forwards signals to the whole process group, propagates exit code)
-- `blackbox sessions` — table of sessions
-- `blackbox inspect <id> [--json] [--file <path>]` — metadata, timeline, before/after/diff per file
-- `blackbox diff <a> <b>` — per-session change sets (what each run created/modified/deleted/renamed)
-- `blackbox rewind <session> [seq] [--force]` — undo a session (pre-session state) or restore state at event seq; refuses on post-session changes without --force; not recorded
-- `blackbox export <session>|--all [--out <dir>]` — portable bundles (manifest.json + content blobs)
-- `blackbox branch [name]` — named workstreams; `sessions [--branch <name>]` filters
-- `blackbox policy [--set-max-age <days>]` / `blackbox prune [--dry-run] [--older-than <days>]` — retention
-- `blackbox doctor [--fix] [--gc]` — integrity check, stale-session repair, orphan-blob collection
-- `blackbox ui` — loopback-only dashboard + read-only JSON API
+- `annalist init` — initialize `.annalist/` (identity only; history lives in `~/.local/share/annalist/`)
+- `annalist run -- <command>` — record a session (inherits stdio, forwards signals to the whole process group, propagates exit code)
+- `annalist sessions` — table of sessions
+- `annalist inspect <id> [--json] [--file <path>]` — metadata, timeline, before/after/diff per file
+- `annalist diff <a> <b>` — per-session change sets (what each run created/modified/deleted/renamed)
+- `annalist rewind <session> [seq] [--force]` — undo a session (pre-session state) or restore state at event seq; refuses on post-session changes without --force; not recorded
+- `annalist export <session>|--all [--out <dir>]` — portable bundles (manifest.json + content blobs)
+- `annalist branch [name]` — named workstreams; `sessions [--branch <name>]` filters
+- `annalist policy [--set-max-age <days>]` / `annalist prune [--dry-run] [--older-than <days>]` — retention
+- `annalist doctor [--fix] [--gc]` — integrity check, stale-session repair, orphan-blob collection
+- `annalist ui` — loopback-only dashboard + read-only JSON API
 
-## Configuration (`blackbox.toml`… `.blackbox/config.toml`)
+## Configuration (`annalist.toml`… `.annalist/config.toml`)
 
 ```toml
 [ignore]
@@ -56,7 +56,7 @@ Defaults ignore `.git`, `node_modules`, `zig-out`, `target`, `build`, `dist`, ca
 src/
   main.zig      entry + dispatch
   cli.zig       parsing, help
-  log.zig       BLACKBOX_LOG=debug|info|warn|error (stderr)
+  log.zig       ANNALIST_LOG=debug|info|warn|error (stderr)
   config.zig    init, identity, ignore/UI config
   db.zig        SQLite layer, migrations, prepared statements
   session.zig   supervisor: spawn, signals, timing, exit codes

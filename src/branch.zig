@@ -1,4 +1,4 @@
-// `blackbox branch`: named workstreams for parallel agent runs.
+// `annalist branch`: named workstreams for parallel agent runs.
 // `branch` lists branches with session counts (* marks current).
 // `branch <name>` switches (names are created on first use).
 // Every `run` records the current branch on its session row.
