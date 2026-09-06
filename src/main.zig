@@ -1,0 +1,188 @@
+// Blackbox: local-first flight recorder for autonomous coding agents.
+
+const std = @import("std");
+const cli = @import("cli.zig");
+const log = @import("log.zig");
+const config = @import("config.zig");
+const session = @import("session.zig");
+const views = @import("views.zig");
+const server = @import("server.zig");
+const doctor = @import("doctor.zig");
+const rewind = @import("rewind.zig");
+
+pub const version_string = "0.2.0";
+
+const ProjectCtx = struct {
+    root: []u8,
+    id: []u8,
+
+    fn deinit(self: *ProjectCtx, allocator: std.mem.Allocator) void {
+        allocator.free(self.root);
+        allocator.free(self.id);
+    }
+};
+
+fn requireProject(allocator: std.mem.Allocator) !ProjectCtx {
+    const root = try config.findProjectRoot(allocator) orelse {
+        log.err("not a blackbox project (no .blackbox/ found). Run `blackbox init` first.", .{});
+        std.process.exit(4);
+    };
+    errdefer allocator.free(root);
+    const id = config.readProjectId(allocator, root) catch {
+        log.err("project config unreadable. Re-run `blackbox init`?", .{});
+        std.process.exit(4);
+    };
+    return .{ .root = root, .id = id };
+}
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    log.init();
+
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
+
+    const cmd = cli.parse(args) catch |err| {
+        switch (err) {
+            cli.ParseError.NoCommand => {
+                try cli.printHelp();
+                return;
+            },
+            cli.ParseError.UnknownCommand => {
+                log.err("unknown command: '{s}'", .{args[1]});
+                try cli.printHelp();
+                std.process.exit(2);
+            },
+            cli.ParseError.MissingSeparator => {
+                log.err("usage: blackbox run -- <command> [args...]", .{});
+                std.process.exit(2);
+            },
+            cli.ParseError.MissingSessionId => {
+                log.err("usage: blackbox inspect <session-id> [--json]", .{});
+                std.process.exit(2);
+            },
+            cli.ParseError.MissingDiffIds => {
+                log.err("usage: blackbox diff <session-a> <session-b>", .{});
+                std.process.exit(2);
+            },
+            cli.ParseError.MissingRewindTarget => {
+                log.err("usage: blackbox rewind <session-id> [seq] [--force]", .{});
+                std.process.exit(2);
+            },
+        }
+    };
+
+    switch (cmd) {
+        .help => try cli.printHelp(),
+        .version => try cli.printVersion(version_string),
+        .init => config.runInit(allocator) catch |err| {
+            log.err("init failed: {s}", .{@errorName(err)});
+            std.process.exit(1);
+        },
+        .run => |r| {
+            var proj = try requireProject(allocator);
+            defer proj.deinit(allocator);
+            // runSession finalizes the row then exits with the child's code.
+            session.runSession(allocator, proj.id, proj.root, r.child_argv) catch |err| {
+                log.err("run failed: {s}", .{@errorName(err)});
+                std.process.exit(1);
+            };
+        },
+        .sessions => {
+            var proj = try requireProject(allocator);
+            defer proj.deinit(allocator);
+            var database = session.openDb(allocator) catch |err| {
+                log.err("cannot open database: {s}", .{@errorName(err)});
+                std.process.exit(1);
+            };
+            defer database.close();
+            views.listSessions(allocator, &database, proj.id) catch |err| {
+                log.err("sessions failed: {s}", .{@errorName(err)});
+                std.process.exit(1);
+            };
+        },
+        .inspect => |opts| {
+            var proj = try requireProject(allocator);
+            defer proj.deinit(allocator);
+            var database = session.openDb(allocator) catch |err| {
+                log.err("cannot open database: {s}", .{@errorName(err)});
+                std.process.exit(1);
+            };
+            defer database.close();
+            views.inspectSession(allocator, &database, proj.id, proj.root, opts.id, opts.json, opts.file) catch |err| {
+                switch (err) {
+                    error.NoSuchSession => log.err("no session '{s}' in this project", .{opts.id}),
+                    error.BadSessionId => log.err("bad session id '{s}'", .{opts.id}),
+                    else => log.err("inspect failed: {s}", .{@errorName(err)}),
+                }
+                std.process.exit(1);
+            };
+        },
+        .ui => {
+            var proj = try requireProject(allocator);
+            defer proj.deinit(allocator);
+            const port = config.readUiPort(allocator, proj.root) catch 8901;
+            const database = try session.openDb(allocator);
+            var srv = server.Server.init(allocator, database, proj.id, proj.root);
+            defer srv.deinit();
+            srv.serve(port) catch |err| {
+                log.err("ui server failed: {s}", .{@errorName(err)});
+                std.process.exit(1);
+            };
+        },
+        .doctor => |opts| {
+            var proj = try requireProject(allocator);
+            defer proj.deinit(allocator);
+            var database = try session.openDb(allocator);
+            defer database.close();
+            const rep = doctor.runDoctor(allocator, &database, proj.id, proj.root, opts.fix, opts.gc) catch |err| {
+                log.err("doctor failed: {s}", .{@errorName(err)});
+                std.process.exit(1);
+            };
+            const problems: i64 = (if (opts.fix) @as(i64, 0) else rep.stale_sessions) +
+                (if (rep.integrity_ok) @as(i64, 0) else @as(i64, 1)) +
+                rep.missing_blobs + (if (opts.gc) @as(i64, 0) else (rep.orphan_blobs - rep.collected));
+            if (problems > 0) std.process.exit(1);
+        },
+        .diff => |opts| {
+            var proj = try requireProject(allocator);
+            defer proj.deinit(allocator);
+            var database = try session.openDb(allocator);
+            defer database.close();
+            views.diffSessions(allocator, &database, proj.id, opts.a, opts.b) catch |err| {
+                switch (err) {
+                    error.NoSuchSession => log.err("no such session in this project", .{}),
+                    error.BadSessionId => log.err("bad session id", .{}),
+                    else => log.err("diff failed: {s}", .{@errorName(err)}),
+                }
+                std.process.exit(1);
+            };
+        },
+        .future => |name| {
+            log.err("'{s}' is on the roadmap but not implemented in v0.2", .{name});
+            std.process.exit(3);
+        },
+        .rewind => |opts| {
+            var proj = try requireProject(allocator);
+            defer proj.deinit(allocator);
+            var database = try session.openDb(allocator);
+            defer database.close();
+            rewind.runRewind(allocator, &database, proj.id, proj.root, opts.id, opts.seq, opts.force) catch |err| {
+                switch (err) {
+                    error.NoSuchSession => log.err("no session '{s}' in this project", .{opts.id}),
+                    error.BadSessionId => log.err("bad session id '{s}'", .{opts.id}),
+                    error.BadSeq => log.err("bad event seq (must be a positive integer)", .{}),
+                    error.NothingToRewind => log.err("session '{s}' recorded no file changes", .{opts.id}),
+                    error.UnsafePath => log.err("refusing: session contains paths outside the project", .{}),
+                    error.BlobMissing => log.err("rewind incomplete: content missing from object store (run doctor)", .{}),
+                    error.Divergent => std.process.exit(1),
+                    else => log.err("rewind failed: {s}", .{@errorName(err)}),
+                }
+                std.process.exit(1);
+            };
+        },
+    }
+}

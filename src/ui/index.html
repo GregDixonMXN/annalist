@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blackbox</title>
+<style>
+:root { color-scheme: dark; }
+body { font-family: system-ui, sans-serif; background: #0e1113; color: #d7dde2; margin: 0; }
+header { padding: 1rem 1.5rem; border-bottom: 1px solid #232a2f; }
+h1 { font-size: 1.1rem; margin: 0; }
+main { display: grid; grid-template-columns: 340px 1fr; gap: 1px; background: #232a2f; min-height: calc(100vh - 57px); }
+#list { background: #0e1113; padding: 1rem; overflow-y: auto; }
+#detail { background: #121518; padding: 1rem 1.5rem; overflow-y: auto; }
+.session { border: 1px solid #232a2f; border-radius: 8px; padding: 0.6rem 0.8rem; margin-bottom: 0.6rem; cursor: pointer; }
+.session:hover, .session.active { border-color: #4f8ff7; }
+.session .cmd { font-family: monospace; font-size: 0.9rem; }
+.meta { color: #8b949e; font-size: 0.8rem; }
+table.timeline { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+table.timeline td { border-top: 1px solid #232a2f; padding: 0.25rem 0.5rem; vertical-align: top; }
+td.t { font-family: monospace; white-space: nowrap; color: #8b949e; }
+td.ev { font-family: monospace; }
+.filelink { color: #4f8ff7; cursor: pointer; }
+pre.diff { background: #0b0e10; border: 1px solid #232a2f; border-radius: 8px; padding: 0.75rem; overflow-x: auto; font-size: 0.8rem; }
+.add { color: #7ee787; } .del { color: #ffa198; }
+h2 { font-size: 1rem; } h3 { font-size: 0.9rem; color: #8b949e; }
+.pill { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.75rem; }
+.ok { background: #1a3a24; color: #7ee787; } .bad { background: #3d1d1d; color: #ffa198; }
+</style>
+</head>
+<body>
+<header><h1>● Blackbox — flight recorder</h1></header>
+<main>
+<div id="list"><p class="meta">Loading sessions…</p></div>
+<div id="detail"><p class="meta">Select a session.</p></div>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function fmtTime(ms) { return new Date(ms).toLocaleString(); }
+function dur(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  if (h) return h + 'h' + String(m).padStart(2, '0') + 'm';
+  if (m) return m + 'm ' + String(s % 60).padStart(2, '0') + 's';
+  return s + 's';
+}
+async function load() {
+  const res = await fetch('/api/sessions');
+  const sessions = await res.json();
+  const list = $('#list');
+  if (!sessions.length) { list.innerHTML = '<p class="meta">No sessions yet.</p>'; return; }
+  list.innerHTML = sessions.map((s) =>
+    '<div class="session" data-id="' + s.id + '">' +
+    '<div class="cmd">' + esc(s.command) + '</div>' +
+    '<div class="meta">#' + String(s.id).padStart(3, '0') + ' · ' + fmtTime(s.started_at) +
+    ' · ' + dur((s.ended_at || Date.now()) - s.started_at) +
+    ' · ' + s.changes + ' changes · ' + s.events + ' events ' +
+    '<span class="pill ' + (s.status === 'success' ? 'ok' : 'bad') + '">' + esc(s.status) + '</span></div>' +
+    '</div>').join('');
+  list.querySelectorAll('.session').forEach((el) => {
+    el.addEventListener('click', () => {
+      list.querySelectorAll('.session').forEach((x) => x.classList.remove('active'));
+      el.classList.add('active');
+      showDetail(Number(el.dataset.id));
+    });
+  });
+}
+const LABELS = { session_started: 'SESSION STARTED', session_ended: 'SESSION ENDED', process_started: 'PROCESS STARTED', process_exited: 'PROCESS EXITED', file_created: 'CREATE', file_modified: 'MODIFY', file_deleted: 'DELETE', file_renamed: 'RENAME', git_state: 'GIT', error: 'ERROR' };
+async function showDetail(id) {
+  const [meta, evs] = await Promise.all([
+    fetch('/api/sessions/' + id).then((r) => r.json()),
+    fetch('/api/sessions/' + id + '/events').then((r) => r.json()),
+  ]);
+  const clock = (ms) => new Date(ms).toLocaleTimeString();
+  const rows = evs.map((e) => {
+    let what = '<span>' + esc(LABELS[e.type] || e.type) + '</span>';
+    if (e.type === 'git_state') what += ' ' + esc(e.path) + ' (' + e.size + ' dirty)';
+    else if (e.prev_path) what += ' <span class="filelink" data-s="' + id + '" data-p="' + esc(e.prev_path) + '">' + esc(e.prev_path) + '</span> → <span class="filelink" data-s="' + id + '" data-p="' + esc(e.path) + '">' + esc(e.path) + '</span>';
+    else if (e.path) what += ' <span class="filelink" data-s="' + id + '" data-p="' + esc(e.path) + '">' + esc(e.path) + '</span>';
+    return '<tr><td class="t">' + clock(e.ts) + '</td><td class="ev">' + what + '</td></tr>';
+  }).join('');
+  $('#detail').innerHTML =
+    '<h2>' + esc(meta.command) + ' <span class="pill ' + (meta.status === 'success' ? 'ok' : 'bad') + '">' + esc(meta.status) + '</span></h2>' +
+    '<p class="meta">Session #' + String(meta.id).padStart(3, '0') + ' · ' + fmtTime(meta.started_at) +
+    ' · ' + dur((meta.ended_at || Date.now()) - meta.started_at) +
+    ' · exit ' + (meta.exit_code === null || meta.exit_code === undefined ? '—' : meta.exit_code) +
+    ' · ' + meta.changes + ' changes · ' + meta.events + ' events</p>' +
+    '<h3>Timeline</h3><table class="timeline">' + rows + '</table>' +
+    '<div id="fileview"></div>';
+  document.querySelectorAll('.filelink').forEach((el) => {
+    el.addEventListener('click', () => showFile(el.dataset.s, el.dataset.p));
+  });
+}
+async function showFile(sessionId, path) {
+  const hist = await fetch('/api/files/history?session=' + sessionId + '&path=' + encodeURIComponent(path)).then((r) => r.json());
+  let html = '<h3>' + esc(path) + '</h3>';
+  for (const h of hist) {
+    html += '<p class="meta">' + esc(h.type) + '</p>';
+    if (h.before === null && h.after === null) { html += '<p class="meta">[binary or unavailable]</p>'; continue; }
+    const b = (h.before || '').split('\n'), a = (h.after || '').split('\n');
+    html += '<pre class="diff">' + esc(diffText(b, a)) + '</pre>';
+  }
+  if (!hist.length) html += '<p class="meta">No recorded changes.</p>';
+  $('#fileview').innerHTML = html;
+}
+function diffText(b, a) {
+  // Tiny LCS diff in the browser for display only.
+  const n = b.length, m = a.length;
+  if (n * m > 400000) return '(file too large for inline diff)';
+  const dp = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    dp[i][j] = b[i] === a[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  let out = '', i = 0, j = 0;
+  while (i < n || j < m) {
+    if (i < n && j < m && b[i] === a[j]) { out += '  ' + b[i] + '\n'; i++; j++; }
+    else if (j < m && (i >= n || dp[i + 1][j] < dp[i][j + 1])) { out += '+ ' + a[j] + '\n'; j++; }
+    else { out += '- ' + b[i] + '\n'; i++; }
+  }
+  return out;
+}
+load();
+</script>
+</body>
+</html>
