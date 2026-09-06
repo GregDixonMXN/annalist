@@ -4,7 +4,7 @@
 
 Annalist observes what the operating system sees, rather than trusting the AI agent's own description of what it did.
 
-## Status: v0.3 working
+## Status: v0.4 working
 
 ## Requirements
 
@@ -33,6 +33,7 @@ zig build
 - `annalist diff <a> <b>` — per-session change sets (what each run created/modified/deleted/renamed)
 - `annalist rewind <session> [seq] [--force]` — undo a session (pre-session state) or restore state at event seq; refuses on post-session changes without --force; not recorded
 - `annalist export <session>|--all [--out <dir>]` — portable bundles (manifest.json + content blobs)
+- `annalist import <dir> [--force]` — restore sessions from a bundle (hash-verified, dedup-guarded)
 - `annalist branch [name]` — named workstreams; `sessions [--branch <name>]` filters
 - `annalist policy [--set-max-age <days>]` / `annalist prune [--dry-run] [--older-than <days>]` — retention
 - `annalist doctor [--fix] [--gc]` — integrity check, stale-session repair, orphan-blob collection

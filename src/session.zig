@@ -6,6 +6,7 @@ const std = @import("std");
 const db = @import("db.zig");
 const log = @import("log.zig");
 const config = @import("config.zig");
+const branch = @import("branch.zig");
 const ignore = @import("ignore.zig");
 const record = @import("record.zig");
 const events = @import("events.zig");
@@ -209,6 +210,7 @@ pub fn runSession(
     project_id: []const u8,
     project_root: []const u8,
     child_argv: []const []const u8,
+    branch_override: ?[]const u8,
 ) !void {
     var database = try openDb(allocator);
     defer database.close();
@@ -231,9 +233,14 @@ pub fn runSession(
     try ins.bindText(3, argv_json);
     try ins.bindText(4, cwd);
     try ins.bindInt64(5, started);
-    const branch = try config.readCurrentBranch(allocator, project_root);
-    defer allocator.free(branch);
-    try ins.bindText(6, branch);
+    if (branch_override) |bo| {
+        if (!branch.validName(bo)) return error.BadBranchName;
+        try ins.bindText(6, bo);
+    } else {
+        const current = try config.readCurrentBranch(allocator, project_root);
+        defer allocator.free(current);
+        try ins.bindText(6, current);
+    }
     _ = try ins.step();
     const session_id = database.lastRowId();
 

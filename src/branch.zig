@@ -53,14 +53,14 @@ pub fn runBranch(
     );
     defer stmt.finalize();
     try stmt.bindText(1, project_id);
-    var n: usize = 0;
+    var saw_current = false;
     while (try stmt.step()) {
         const b = stmt.columnText(0);
         const count = stmt.columnInt64(1);
+        if (std.mem.eql(u8, b, cur)) saw_current = true;
         const mark: []const u8 = if (std.mem.eql(u8, b, cur)) "*" else " ";
         try out.print("{s} {s} ({d} session{s})\n", .{ mark, b, count, if (count == 1) @as([]const u8, "") else "s" });
-        n += 1;
     }
-    if (n == 0) try out.print("* main (0 sessions)\n", .{});
+    if (!saw_current) try out.print("* {s} (0 sessions)\n", .{cur});
     try out.flush();
 }

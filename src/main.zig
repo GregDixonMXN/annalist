@@ -12,8 +12,9 @@ const rewind = @import("rewind.zig");
 const bundle = @import("export.zig");
 const branch = @import("branch.zig");
 const policy = @import("policy.zig");
+const unbundle = @import("import.zig");
 
-pub const version_string = "0.3.0";
+pub const version_string = "0.4.0";
 
 const ProjectCtx = struct {
     root: []u8,
@@ -97,8 +98,11 @@ pub fn main() !void {
             var proj = try requireProject(allocator);
             defer proj.deinit(allocator);
             // runSession finalizes the row then exits with the child's code.
-            session.runSession(allocator, proj.id, proj.root, r.child_argv) catch |err| {
-                log.err("run failed: {s}", .{@errorName(err)});
+            session.runSession(allocator, proj.id, proj.root, r.child_argv, r.branch) catch |err| {
+                switch (err) {
+                    error.BadBranchName => log.err("bad branch name (1-64 chars of A-Za-z0-9_.-)", .{}),
+                    else => log.err("run failed: {s}", .{@errorName(err)}),
+                }
                 std.process.exit(1);
             };
         },
@@ -223,6 +227,22 @@ pub fn main() !void {
                     error.BadRetention => log.err("bad --older-than value (positive days)", .{}),
                     error.NeedRetention => log.err("no retention configured; pass --older-than <days>", .{}),
                     else => log.err("prune failed: {s}", .{@errorName(err)}),
+                }
+                std.process.exit(1);
+            };
+        },
+        .unbundle => |opts| {
+            var proj = try requireProject(allocator);
+            defer proj.deinit(allocator);
+            var database = try session.openDb(allocator);
+            defer database.close();
+            unbundle.runImport(allocator, &database, proj.id, proj.root, opts.dir, opts.force) catch |err| {
+                switch (err) {
+                    error.BadBundle => log.err("not a valid bundle (manifest.json unreadable or bad format)", .{}),
+                    error.BlobMissing => log.err("bundle incomplete: blob file missing", .{}),
+                    error.CorruptBundle => log.err("bundle corrupt: blob content does not match its hash", .{}),
+                    error.AlreadyImported => log.err("session already imported (re-run with --force)", .{}),
+                    else => log.err("import failed: {s}", .{@errorName(err)}),
                 }
                 std.process.exit(1);
             };

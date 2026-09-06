@@ -28,11 +28,13 @@ pub const Command = union(enum) {
     branch: BranchOpts,
     policy: PolicyOpts,
     prune: PruneOpts,
+    unbundle: ImportOpts,
     future: []const u8,
 };
 
 pub const RunOpts = struct {
     child_argv: []const []const u8,
+    branch: ?[]const u8 = null,
 };
 
 pub const SessionsOpts = struct {
@@ -50,6 +52,11 @@ pub const PolicyOpts = struct {
 pub const PruneOpts = struct {
     older_than: ?[]const u8 = null,
     dry_run: bool = false,
+};
+
+pub const ImportOpts = struct {
+    dir: []const u8,
+    force: bool = false,
 };
 
 pub const InspectOpts = struct {
@@ -143,6 +150,18 @@ pub fn parse(args: []const []const u8) ParseError!Command {
         }
         return Command{ .prune = .{ .older_than = older, .dry_run = dry } };
     }
+    if (std.mem.eql(u8, name, "import")) {
+        if (args.len < 3) return ParseError.InvalidArgs;
+        var force = false;
+        for (args[3..]) |a| {
+            if (std.mem.eql(u8, a, "--force")) {
+                force = true;
+            } else {
+                return ParseError.InvalidArgs;
+            }
+        }
+        return Command{ .unbundle = .{ .dir = args[2], .force = force } };
+    }
     if (std.mem.eql(u8, name, "ui")) return .ui;
     if (std.mem.eql(u8, name, "doctor")) {
         var fix = false;
@@ -205,7 +224,19 @@ pub fn parse(args: []const []const u8) ParseError!Command {
         }
         const s = sep orelse return ParseError.MissingSeparator;
         if (s + 1 >= args.len) return ParseError.MissingSeparator;
-        return Command{ .run = .{ .child_argv = args[s + 1 ..] } };
+        var branch: ?[]const u8 = null;
+        var i: usize = 2;
+        while (i < s) : (i += 1) {
+            if (std.mem.eql(u8, args[i], "--branch")) {
+                i += 1;
+                if (i >= s) return ParseError.InvalidArgs;
+                if (branch != null) return ParseError.InvalidArgs;
+                branch = args[i];
+            } else {
+                return ParseError.InvalidArgs;
+            }
+        }
+        return Command{ .run = .{ .child_argv = args[s + 1 ..], .branch = branch } };
     }
 
     if (std.mem.eql(u8, name, "inspect")) {
@@ -250,13 +281,14 @@ pub fn printHelp() !void {
         \\
         \\Usage:
         \\  annalist init                        initialize this project
-        \\  annalist run -- <command> [args]     record a session
+        \\  annalist run [--branch <name>] -- <command> [args]  record a session
         \\  annalist sessions [--branch <name>]    list recorded sessions
         \\  annalist branch [name]               list or switch workstream
         \\  annalist inspect <session-id>        inspect a session
         \\  annalist diff <a> <b>                  compare two sessions
         \\  annalist rewind <session> [seq] [--force]  restore files to a recorded point
         \\  annalist export <session>|--all [--out <dir>]  portable session bundle(s)
+        \\  annalist import <dir> [--force]          restore session(s) from a bundle
         \\  annalist policy [--set-max-age <days>]  show/set retention
         \\  annalist prune [--dry-run] [--older-than <days>]  delete old sessions
         \\  annalist doctor [--fix] [--gc]         health check + repair

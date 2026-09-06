@@ -58,6 +58,18 @@ fn setOwned(allocator: std.mem.Allocator, m: *std.StringHashMap(PS), path: []con
     });
 }
 
+/// Remove empty parent dirs of an absolute file path, stopping at root.
+// Stops at the first non-empty dir; never touches root itself.
+fn pruneEmptyParents(root: []const u8, abs_file: []const u8) void {
+    var dir_opt = std.fs.path.dirname(abs_file);
+    while (dir_opt) |dir| {
+        if (dir.len <= root.len) break;
+        if (!std.mem.startsWith(u8, dir, root)) break;
+        std.fs.deleteDirAbsolute(dir) catch break;
+        dir_opt = std.fs.path.dirname(dir);
+    }
+}
+
 /// Reject absolute paths and `..` components: rewind must stay in the project.
 fn safeRel(path: []const u8) bool {
     if (path.len == 0) return false;
@@ -263,6 +275,7 @@ pub fn runRewind(
                 std.fs.deleteFileAbsolute(abs) catch |err| {
                     if (err != error.FileNotFound) return err;
                 };
+                pruneEmptyParents(project_root, abs);
                 deleted += 1;
                 try out.print("  - {s}\n", .{rel});
             } else {
