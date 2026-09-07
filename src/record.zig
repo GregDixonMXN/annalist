@@ -94,6 +94,11 @@ pub const Recorder = struct {
         const allocator = self.allocator;
         const now = std.time.milliTimestamp();
 
+        // Stored hashes pinned per path this pass. Applied to next.map at
+        // the end via iterator (mutable access): get() returns const.
+        var pinned = std.StringHashMap(?[hash.HASH_HEX_LEN]u8).init(allocator);
+        defer pinned.deinit();
+
         // Collect created + deleted for rename pairing.
         var created: std.ArrayList([]const u8) = .empty;
         defer created.deinit(allocator);
@@ -105,7 +110,10 @@ pub const Recorder = struct {
             const path = kv.key_ptr.*;
             if (self.baseline.map.get(path)) |old| {
                 if (entryChanged(old, kv.value_ptr.*)) {
-                    try self.emitModified(path, old, kv.value_ptr.*, now);
+                    const stored = try self.emitModified(path, old, kv.value_ptr.*, now);
+                    // Pin the map to stored bytes: future prev_hash refs must
+                    // resolve in the store, never to scanned-but-lost content.
+                    try pinned.put(path, stored);
                 }
             } else {
                 try created.append(allocator, path);
@@ -133,7 +141,8 @@ pub const Recorder = struct {
                 const new_entry = next.map.get(new_path).?;
                 if (!new_entry.hashed) continue;
                 if (!std.mem.eql(u8, &old.hash_hex, &new_entry.hash_hex)) continue;
-                try self.emitRenamed(old_path, new_path, old, new_entry, now);
+                const stored_r = try self.emitRenamed(old_path, new_path, old, new_entry, now);
+                try pinned.put(new_path, stored_r);
                 try used_new.put(i, {});
                 paired = true;
                 break;
@@ -143,7 +152,21 @@ pub const Recorder = struct {
         for (created.items, 0..) |new_path, i| {
             if (used_new.get(i) != null) continue;
             const new_entry = next.map.get(new_path).?;
-            try self.emitCreated(new_path, new_entry, now);
+            const stored_c = try self.emitCreated(new_path, new_entry, now);
+            try pinned.put(new_path, stored_c);
+        }
+
+        // Apply pinned hashes: recorded state references stored bytes only.
+        // Unstored observations become unhashed (future prev_hash = null).
+        var fix = next.map.iterator();
+        while (fix.next()) |kv| {
+            if (pinned.get(kv.key_ptr.*)) |stored| {
+                if (stored) |s| {
+                    kv.value_ptr.hash_hex = s;
+                } else {
+                    kv.value_ptr.hashed = false;
+                }
+            }
         }
     }
 
@@ -169,7 +192,8 @@ pub const Recorder = struct {
         defer self.allocator.free(abs);
         const content = readCapped(self.allocator, abs, scan.MAX_FILE_BYTES) catch return null;
         defer self.allocator.free(content);
-        // Re-hash what we actually read; if it raced, keep the scanned hash.
+        // Re-hash what we actually read and report THAT hash: the recorded
+        // state must reference stored bytes, never scanned-but-unstored ones.
         const stored = store.put(self.allocator, self.project_root, content) catch return null;
         defer self.allocator.free(stored);
         var out: [hash.HASH_HEX_LEN]u8 = undefined;
@@ -177,7 +201,7 @@ pub const Recorder = struct {
         return out;
     }
 
-    fn emitCreated(self: *Recorder, path: []const u8, entry: scan.Entry, now: i64) !void {
+    fn emitCreated(self: *Recorder, path: []const u8, entry: scan.Entry, now: i64) !?[hash.HASH_HEX_LEN]u8 {
         const new_hash = self.storeAfter(path, entry);
         try self.queue.push(self.allocator, .{
             .ts = now,
@@ -188,9 +212,10 @@ pub const Recorder = struct {
             .new_hash = new_hash,
             .size = entry.size,
         });
+        return new_hash;
     }
 
-    fn emitModified(self: *Recorder, path: []const u8, old: scan.Entry, new_entry: scan.Entry, now: i64) !void {
+    fn emitModified(self: *Recorder, path: []const u8, old: scan.Entry, new_entry: scan.Entry, now: i64) !?[hash.HASH_HEX_LEN]u8 {
         const new_hash = self.storeAfter(path, new_entry);
         try self.queue.push(self.allocator, .{
             .ts = now,
@@ -201,6 +226,7 @@ pub const Recorder = struct {
             .new_hash = new_hash,
             .size = new_entry.size,
         });
+        return new_hash;
     }
 
     fn emitDeleted(self: *Recorder, path: []const u8, old: scan.Entry, now: i64) !void {
@@ -222,7 +248,7 @@ pub const Recorder = struct {
         old: scan.Entry,
         new_entry: scan.Entry,
         now: i64,
-    ) !void {
+    ) !?[hash.HASH_HEX_LEN]u8 {
         const new_hash = self.storeAfter(new_path, new_entry);
         try self.queue.push(self.allocator, .{
             .ts = now,
@@ -235,6 +261,7 @@ pub const Recorder = struct {
             .new_hash = new_hash,
             .size = new_entry.size,
         });
+        return new_hash;
     }
 };
 
