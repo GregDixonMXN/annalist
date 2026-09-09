@@ -11,6 +11,7 @@
 
 `command:` is any shell argv. `policy_file:` sets allow_paths, deny_globs, max_files_changed. Exit 0 green, 2 deny, 1 broken. Mark the check required under branch protection and a `.env`-writing PR cannot merge. Linux x86_64 runners only; the recorder samples every 2s; file contents are stored unredacted — review exclusions first.
 
+**Proof.** Same policy, two jobs on one PR: [green — `src/hello.txt` passes](https://github.com/GregDixonMXN/annalist/actions/runs/34377464392/job/102553767965), [red — `.env` denied, gate exit 2](https://github.com/GregDixonMXN/annalist/actions/runs/34377464392/job/102553768346). The red is the product working, not a broken build.
 **A clear history. A way back.**
 
 Annalist is a local coding-work recorder. Wrap a coding agent or command, review observed file changes in a private loopback dashboard, and preview recovery before restoring touched files. No account, telemetry, cloud dependency, or network assets.
