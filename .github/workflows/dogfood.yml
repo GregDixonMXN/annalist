@@ -1,0 +1,34 @@
+name: dogfood agent
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: Agent task prompt
+        required: false
+        default: Run `zig build test` and fix any failure without changing public behavior. Do not commit.
+jobs:
+  agent:
+    runs-on: ubuntu-24.04
+    env:
+      ANNALIST_TASK: ${{ inputs.task }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require agent credential
+        shell: bash
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set -eu
+          [ -n "$ANTHROPIC_API_KEY" ] || {
+            echo "Add an ANTHROPIC_API_KEY repo secret (Settings -> Secrets and variables -> Actions), then re-dispatch." >&2
+            exit 1
+          }
+      - name: Install Claude Code
+        shell: bash
+        run: npm install -g @anthropic-ai/claude-code
+      - uses: ./.github/actions/annalist-run
+        with:
+          command: claude -p "$ANNALIST_TASK" --output-format text --max-turns 25 --dangerously-skip-permissions
+          policy_file: examples/agent-pr/annalist.policy.toml
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
