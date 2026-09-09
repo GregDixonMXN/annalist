@@ -15,7 +15,7 @@ const policy = @import("policy.zig");
 const unbundle = @import("import.zig");
 const gate = @import("gate.zig");
 
-pub const version_string = "1.0.0-rc.2";
+pub const version_string = "1.0.0-rc.3";
 
 const ProjectCtx = struct {
     root: []u8,

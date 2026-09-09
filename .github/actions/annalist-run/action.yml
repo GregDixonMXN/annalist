@@ -15,7 +15,7 @@ inputs:
   version:
     description: Annalist release version, without the leading v.
     required: false
-    default: '1.0.0-rc.2'
+    default: '1.0.0-rc.3'
   repository:
     description: GitHub repository hosting annalist releases (owner/name).
     required: false

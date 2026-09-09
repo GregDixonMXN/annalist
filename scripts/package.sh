@@ -4,7 +4,9 @@ cd "$(dirname "$0")/.."
 : "${ZIG:=zig}"
 [ "$("$ZIG" version)" = 0.15.2 ] || { echo 'Zig 0.15.2 required' >&2; exit 1; }
 [ "$(uname -s)-$(uname -m)" = Linux-x86_64 ] || { echo 'Validated packaging target is Linux x86_64' >&2; exit 1; }
-"$ZIG" build -Doptimize=ReleaseSafe
+# Baseline x86_64: never ship native-CPU instructions (past release
+# crashed with SIGILL on hosted runners whose CPUs lack them).
+"$ZIG" build -Doptimize=ReleaseSafe -Dcpu=baseline
 version=$(zig-out/bin/annalist version | cut -d ' ' -f2)
 name="annalist-${version}-linux-x86_64"
 stage=$(mktemp -d)
@@ -15,7 +17,8 @@ cp -R docs "$stage/$name/"
 {
   printf '%s\n' "Annalist $version · Linux x86_64" \
     'Requires glibc and system libsqlite3.so.0. No Zig runtime is required.' \
-    'Unsigned local release candidate. See docs/INSTALL.md and docs/RELEASE.md.'
+    'Unsigned local release candidate. See docs/INSTALL.md and docs/RELEASE.md.' \
+    'CPU baseline: generic x86_64 (no host-specific instructions).'
   printf '\nBuild toolchain: Zig %s\n' "$("$ZIG" version)"
   if [ -r /etc/os-release ]; then
     sed -n 's/^PRETTY_NAME=/Build distribution: /p' /etc/os-release

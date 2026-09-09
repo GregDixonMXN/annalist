@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: GregDixonMXN/annalist/.github/actions/annalist-run@v1.0.0-rc.2
+      - uses: GregDixonMXN/annalist/.github/actions/annalist-run@v1.0.0-rc.3
         with:
           command: mkdir -p src && printf 'hello\n' > src/hello.txt
           policy_file: examples/agent-pr/annalist.policy.toml
@@ -28,7 +28,7 @@ jobs:
 | `command` | yes | — | Shell command to record. |
 | `policy_file` | no | `''` | Path to an `annalist.policy.toml`. When empty, a default policy is generated. |
 | `fail_on_secret` | no | `'true'` | Secret-file denial, used only when `policy_file` is empty. |
-| `version` | no | `'1.0.0-rc.2'` | Release version without the leading `v`. |
+| `version` | no | `'1.0.0-rc.3'` | Release version without the leading `v`. |
 | `repository` | no | `'GregDixonMXN/annalist'` | Repo hosting the releases. |
 
 Each run uploads an `annalist-bundle` artifact (the exported session) and
