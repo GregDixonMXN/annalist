@@ -13,8 +13,9 @@ const bundle = @import("export.zig");
 const branch = @import("branch.zig");
 const policy = @import("policy.zig");
 const unbundle = @import("import.zig");
+const gate = @import("gate.zig");
 
-pub const version_string = "1.0.0-rc.1";
+pub const version_string = "1.0.0-rc.2";
 
 const ProjectCtx = struct {
     root: []u8,
@@ -257,6 +258,28 @@ pub fn main() !void {
                 std.process.exit(1);
             };
         },
+        .gate => |opts| {
+            var proj = try requireProject(allocator, true);
+            defer proj.deinit(allocator);
+            var database = try session.openDb(allocator);
+            defer database.close();
+            gate.runGate(allocator, &database, proj.id, proj.root, opts.session, opts.policy) catch |err| {
+                switch (err) {
+                    error.PolicyDeny => std.process.exit(2),
+                    error.NoSuchSession => log.err("no session '{s}' in this project", .{opts.session}),
+                    error.BadSessionId => log.err("bad session id '{s}'", .{opts.session}),
+                    error.UnfinishedSession => log.err("session '{s}' is still running", .{opts.session}),
+                    error.DoctorDirty => log.err("gate: storage unhealthy (run doctor)", .{}),
+                    error.BlobMissing => log.err("gate: content missing from object store (run doctor)", .{}),
+                    error.NoSuchPolicy => log.err("gate: policy file not found", .{}),
+                    error.UnknownPolicyKey => log.err("gate: policy file has an unknown key", .{}),
+                    error.BadPolicyValue => log.err("gate: policy file value is malformed", .{}),
+                    error.TreeTooLarge => log.err("gate: working tree too large to scan fully", .{}),
+                    else => log.err("gate failed: {s}", .{@errorName(err)}),
+                }
+                std.process.exit(1);
+            };
+        },
         .future => |name| {
             log.err("'{s}' is on the roadmap but not implemented in v0.3", .{name});
             std.process.exit(3);
@@ -297,6 +320,7 @@ test {
     std.testing.refAllDecls(@import("hash.zig"));
     std.testing.refAllDecls(@import("ignore.zig"));
     std.testing.refAllDecls(@import("import.zig"));
+    std.testing.refAllDecls(@import("gate.zig"));
     std.testing.refAllDecls(@import("log.zig"));
     std.testing.refAllDecls(@import("policy.zig"));
     std.testing.refAllDecls(@import("record.zig"));

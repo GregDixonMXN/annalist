@@ -87,6 +87,22 @@ annalist import ../run-1
 
 The output destination must not exist. Each individual bundle is staged then published locally only after all required blobs have been verified/copied. `--all` creates one subdirectory per run; earlier completed bundles remain if a later run fails. Import one bundle directory at a time. Imports verify hashes and commit rows transactionally, assign fresh IDs, and use the destination's current workstream. Failed imports may leave unreferenced verified objects; `doctor --gc` can collect those. `import --force` adds another copy, not an overwrite. Back up first when upgrading; the current SQLite and blob layout is preserved.
 
+## Policy gate
+
+```sh
+annalist gate --session 1 --policy annalist.policy.toml
+# exit 0 pass, exit 2 policy deny, exit 1 broken session/storage/policy
+```
+
+```toml
+allow_paths = ["src/", "docs/", "tests/"]
+deny_globs = [".env", ".env.*", "*.pem", "**/secrets/**"]
+max_files_changed = 80
+fail_on_secret = true
+```
+
+With no policy file the secret defaults still apply. Unknown keys are an error. The gate refuses unfinished sessions, fails when the index is corrupt or session content is missing, verifies the session exports, then prints a one-screen report of created/modified/deleted files and denials. Because the recorder ignores secrets, the gate also scans the working tree for secret-glob matches: a run that writes `.env` records no event for it, but still fails the gate.
+
 ## Maintenance
 
 ```sh

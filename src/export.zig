@@ -28,7 +28,7 @@ fn writeJsonStrOrNull(out: anytype, allocator: std.mem.Allocator, stmt: *db.Stmt
 }
 
 /// Export one session into out_dir (created). Returns blobs copied.
-fn exportOne(
+pub fn exportOne(
     allocator: std.mem.Allocator,
     database: *db.Db,
     project_id: []const u8,

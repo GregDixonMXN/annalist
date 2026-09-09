@@ -1,0 +1,96 @@
+name: Annalist run
+description: Record a command with annalist, export the session bundle, and enforce a policy gate.
+inputs:
+  command:
+    description: Shell command to record (runs under `annalist run`).
+    required: true
+  policy_file:
+    description: Path to an annalist.policy.toml file. When empty, a default policy is generated.
+    required: false
+    default: ''
+  fail_on_secret:
+    description: Deny runs that leave secret files behind (used only when policy_file is empty).
+    required: false
+    default: 'true'
+  version:
+    description: Annalist release version, without the leading v.
+    required: false
+    default: '1.0.0-rc.2'
+  repository:
+    description: GitHub repository hosting annalist releases (owner/name).
+    required: false
+    default: 'GregDixonMXN/annalist'
+runs:
+  using: composite
+  steps:
+    - name: Require Linux x86_64
+      shell: bash
+      run: |
+        set -eu
+        [ "$(uname -s)-$(uname -m)" = "Linux-x86_64" ] || { echo "annalist action supports Linux x86_64 runners only" >&2; exit 1; }
+    - name: Install runtime dependency
+      shell: bash
+      run: |
+        set -eu
+        if ! ldconfig -p 2>/dev/null | grep -q libsqlite3; then
+          sudo apt-get update && sudo apt-get install -y libsqlite3-0
+        fi
+    - name: Download annalist release binary
+      shell: bash
+      run: |
+        set -eu
+        V="${{ inputs.version }}"
+        R="${{ inputs.repository }}"
+        A="annalist-${V}-linux-x86_64.tar.gz"
+        cd "$RUNNER_TEMP"
+        curl -fsSL -o "$A" "https://github.com/${R}/releases/download/v${V}/${A}"
+        curl -fsSL -o "${A}.sha256" "https://github.com/${R}/releases/download/v${V}/${A}.sha256"
+        (cd "$RUNNER_TEMP" && sha256sum -c "${A}.sha256")
+        tar -xzf "$RUNNER_TEMP/$A" -C "$RUNNER_TEMP"
+        echo "$RUNNER_TEMP/annalist-${V}-linux-x86_64" >> "$GITHUB_PATH"
+    - name: Record command
+      shell: bash
+      env:
+        ANNALIST_COMMAND: ${{ inputs.command }}
+      run: |
+        set -eu
+        [ -d .annalist ] || annalist init
+        annalist run -- sh -c "$ANNALIST_COMMAND"
+    - name: Export and gate
+      id: gate
+      shell: bash
+      env:
+        ANNALIST_POLICY_FILE: ${{ inputs.policy_file }}
+        ANNALIST_FAIL_ON_SECRET: ${{ inputs.fail_on_secret }}
+      run: |
+        set -eu
+        SESSION="$(annalist sessions | awk '$1 ~ /^[0-9]+$/ {print $1}' | tail -n 1)"
+        [ -n "$SESSION" ] || { echo "no recorded session found" >&2; exit 1; }
+        echo "session=$SESSION" >> "$GITHUB_OUTPUT"
+        annalist export "$SESSION" --out ./annalist-bundle
+        if [ -n "$ANNALIST_POLICY_FILE" ]; then
+          POLICY="$ANNALIST_POLICY_FILE"
+        else
+          printf 'fail_on_secret = %s\n' "$ANNALIST_FAIL_ON_SECRET" > ./annalist.policy.toml
+          POLICY=./annalist.policy.toml
+        fi
+        set +e
+        annalist gate --session "$SESSION" --policy "$POLICY" 2>&1 | tee ./gate-report.txt
+        CODE=${PIPESTATUS[0]}
+        set -e
+        {
+          echo "## Annalist gate"
+          echo ""
+          echo "Session \`$SESSION\`, policy \`$POLICY\`, exit \`$CODE\`."
+          echo ""
+          echo '```'
+          cat ./gate-report.txt
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+        exit "$CODE"
+    - name: Upload bundle
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: annalist-bundle
+        path: annalist-bundle/

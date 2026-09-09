@@ -1,0 +1,4 @@
+allow_paths = ["src/", "docs/", "tests/"]
+deny_globs = [".env", ".env.*", "*.pem", "**/secrets/**"]
+max_files_changed = 80
+fail_on_secret = true

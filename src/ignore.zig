@@ -55,6 +55,20 @@ pub fn matches(pattern: []const u8, rel_path: []const u8) bool {
     if (std.mem.eql(u8, pattern, "**")) return true;
     if (std.mem.endsWith(u8, pattern, "/**")) {
         const prefix = pattern[0 .. pattern.len - 3];
+        if (std.mem.startsWith(u8, prefix, "**/")) {
+            // Leading **/: subtree match at any depth.
+            const needle = prefix[3..];
+            if (needle.len == 0) return true;
+            var components = std.mem.splitScalar(u8, rel_path, '/');
+            var offset: usize = 0;
+            while (components.next()) |component| {
+                const rest = rel_path[offset..];
+                if (std.mem.eql(u8, rest, needle)) return true;
+                if (rest.len > needle.len and std.mem.startsWith(u8, rest, needle) and rest[needle.len] == '/') return true;
+                offset += component.len + 1;
+            }
+            return false;
+        }
         if (rel_path.len < prefix.len) return false;
         if (!std.mem.startsWith(u8, rel_path, prefix)) return false;
         return rel_path.len == prefix.len or rel_path[prefix.len] == '/';
@@ -105,4 +119,9 @@ test "ignore matching" {
     try testing.expect(isIgnored(&default_ignores, ".annalist/objects/ab"));
     try testing.expect(isIgnored(&default_ignores, "zig-out/bin/x"));
     try testing.expect(!isIgnored(&default_ignores, "src/main.zig"));
+    try testing.expect(matches("**/secrets/**", "a/secrets/dump.sql"));
+    try testing.expect(matches("**/secrets/**", "secrets/dump.sql"));
+    try testing.expect(matches("**/secrets/**", "a/b/secrets"));
+    try testing.expect(!matches("**/secrets/**", "a/secret/dump.sql"));
+    try testing.expect(!matches("**/secrets/**", "src/main.zig"));
 }

@@ -29,6 +29,7 @@ pub const Command = union(enum) {
     policy: PolicyOpts,
     prune: PruneOpts,
     unbundle: ImportOpts,
+    gate: GateOpts,
     future: []const u8,
 };
 
@@ -86,6 +87,11 @@ pub const ExportOpts = struct {
     id: ?[]const u8 = null,
     out: ?[]const u8 = null,
     all: bool = false,
+};
+
+pub const GateOpts = struct {
+    session: []const u8,
+    policy: ?[]const u8 = null,
 };
 
 /// Commands reserved for later. Listed so help stays honest.
@@ -153,6 +159,27 @@ pub fn parse(args: []const []const u8) ParseError!Command {
             }
         }
         return Command{ .prune = .{ .older_than = older, .dry_run = dry } };
+    }
+    if (std.mem.eql(u8, name, "gate")) {
+        var session: ?[]const u8 = null;
+        var policy: ?[]const u8 = null;
+        var i: usize = 2;
+        while (i < args.len) : (i += 1) {
+            const a = args[i];
+            if (std.mem.eql(u8, a, "--session")) {
+                i += 1;
+                if (i >= args.len) return ParseError.MissingSessionId;
+                session = args[i];
+            } else if (std.mem.eql(u8, a, "--policy")) {
+                i += 1;
+                if (i >= args.len) return ParseError.InvalidArgs;
+                policy = args[i];
+            } else {
+                return ParseError.InvalidArgs;
+            }
+        }
+        if (session == null) return ParseError.MissingSessionId;
+        return Command{ .gate = .{ .session = session.?, .policy = policy } };
     }
     if (std.mem.eql(u8, name, "import")) {
         if (args.len < 3) return ParseError.InvalidArgs;
@@ -301,6 +328,7 @@ pub fn printHelp() !void {
         \\  annalist inspect <session-id>        inspect a session
         \\  annalist diff <a> <b>                  compare two sessions
         \\  annalist rewind <session> [seq] [--dry-run] [--force]  restore files to a recorded point
+        \\  annalist gate --session <id> [--policy <file>]  policy check: 0 pass, 2 deny, 1 broken
         \\  annalist export <session>|--all [--out <dir>]  portable session bundle(s)
         \\  annalist import <dir> [--force]          restore session(s) from a bundle
         \\  annalist policy [--set-max-age <days>]  show/set retention

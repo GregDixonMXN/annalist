@@ -1,0 +1,25 @@
+name: agent-pr demo
+on:
+  pull_request:
+    paths:
+      - 'examples/agent-pr/**'
+      - '.github/actions/annalist-run/**'
+      - '.github/workflows/agent-pr-demo.yml'
+  workflow_dispatch:
+jobs:
+  demo-green:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/annalist-run
+        with:
+          command: mkdir -p src && printf 'hello\n' > src/hello.txt
+          policy_file: examples/agent-pr/annalist.policy.toml
+  demo-red:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/annalist-run
+        with:
+          command: printf 'SECRET=not-real\n' > .env
+          policy_file: examples/agent-pr/annalist.policy.toml

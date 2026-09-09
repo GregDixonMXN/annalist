@@ -16,7 +16,7 @@ with tempfile.TemporaryDirectory(prefix='annalist-integration-') as temp:
         return p.stdout
     run('init'); cfg=project/'.annalist/config.toml'; identity=cfg.read_text(); run('init')
     check('init preserves identity',cfg.read_text()==identity)
-    for args in [('ui','--bad'),('run','--bad','--','true'),('inspect','1','--bad'),('doctor','--bad'),('export','1','--all')]:run(*args,code=2)
+    for args in [('ui','--bad'),('run','--bad','--','true'),('inspect','1','--bad'),('doctor','--bad'),('export','1','--all'),('gate','--bad')]:run(*args,code=2)
     check('strict command validation',True)
     (project/'a.txt').write_text('before\n'); (project/'gone.txt').write_text('deleted\n'); (project/'.env').write_text('SYNTHETIC_SECRET=not-real')
     run('run','--','sh','-c','printf "after\\n" > a.txt; rm gone.txt; printf "new\\n" > new.txt')
@@ -70,6 +70,28 @@ with tempfile.TemporaryDirectory(prefix='annalist-integration-') as temp:
     run('rewind',sid,'--force');check('recovery restores pre-session state',(project/'a.txt').read_text()=='before\n' and (project/'gone.txt').read_text()=='deleted\n' and not (project/'new.txt').exists())
     backups=list((project/'.annalist/recovery').glob('*/a.txt'));check('pre-recovery copies retained',any(p.read_text()=='later edit' for p in backups))
     run('run','--','sh','-c','exit 7',code=7);check('child exit propagated',True)
+    (project/'.env').unlink(missing_ok=True)
+    (project/'policy.toml').write_text('allow_paths = ["src/", "docs/", "tests/"]' + chr(10) + 'deny_globs = [".env", ".env.*", "*.pem", "**/secrets/**"]' + chr(10) + 'max_files_changed = 80' + chr(10) + 'fail_on_secret = true' + chr(10))
+    run('run','--','sh','-c','mkdir -p src && printf ok > src/ok.txt')
+    gate_id = db.execute('select max(id) from sessions').fetchone()[0]
+    run('gate','--session',str(gate_id),'--policy','policy.toml');check('gate passes clean session',True)
+    run('run','--','sh','-c','printf SECRET=x > .env')
+    secret_id = db.execute('select max(id) from sessions').fetchone()[0]
+    run('gate','--session',str(secret_id),'--policy','policy.toml',code=2);check('gate denies secret',True)
+    (project/'.env').unlink()
+    run('gate','--session','999999','--policy','policy.toml',code=1);check('gate rejects unknown session',True)
+    (project/'bad-policy.toml').write_text('allow_paths = []' + chr(10) + 'bogus = 1' + chr(10))
+    run('gate','--session',str(gate_id),'--policy','bad-policy.toml',code=1);check('gate rejects unknown policy key',True)
+    gblob = None
+    gsaved = None
+    ghash = None
+    for row in db.execute('select distinct new_hash from events where session_id=? and new_hash is not null',(gate_id,)):
+        cand = project/'.annalist/objects'/row[0][:2]/row[0][2:]
+        if cand.exists():gblob = cand;gsaved = cand.read_bytes();ghash = row[0];break
+    assert gblob is not None, 'gate fixture blob missing'
+    gblob.unlink()
+    run('gate','--session',str(gate_id),'--policy','policy.toml',code=1);check('gate fails on missing content',True)
+    gblob.write_bytes(gsaved)
     # Long-running process verifies persisted events and exclusive maintenance.
     child=subprocess.Popen([str(binary),'run','--','sh','-c','echo live > live.txt; sleep 30'],cwd=project,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
     try:
