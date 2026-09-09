@@ -37,6 +37,12 @@ fn exportOne(
     out_dir: []const u8,
 ) !usize {
     try views.assertSession(database, project_id, session_id);
+    var ended = try database.prepare("SELECT ended_at FROM sessions WHERE id = ?1;");
+    defer ended.finalize();
+    try ended.bindInt64(1, session_id);
+    if (try ended.step()) {
+        if (ended.columnIsNull(0)) return error.UnfinishedSession;
+    }
 
     // Work with an absolute dir: downstream file APIs require it.
     const abs_dir = if (std.fs.path.isAbsolute(out_dir))
@@ -47,19 +53,18 @@ fn exportOne(
         break :blk try std.fs.path.join(allocator, &.{ cwd, out_dir });
     };
     defer allocator.free(abs_dir);
-    const out_dir_abs = abs_dir;
-
-    std.fs.cwd().makePath(out_dir_abs) catch |err| {
-        if (err != error.PathAlreadyExists) return err;
-    };
-    const manifest_path = try std.fs.path.join(allocator, &.{ out_dir_abs, "manifest.json" });
-    defer allocator.free(manifest_path);
-    // Refuse to silently clobber an existing bundle.
-    if (std.fs.accessAbsolute(manifest_path, .{})) {
+    if (std.fs.accessAbsolute(abs_dir, .{})) {
         return error.BundleExists;
     } else |err| {
         if (err != error.FileNotFound) return err;
     }
+    const out_dir_abs = try std.fmt.allocPrint(allocator, "{s}.partial-{x}", .{ abs_dir, std.crypto.random.int(u64) });
+    defer allocator.free(out_dir_abs);
+    if (std.fs.path.dirname(abs_dir)) |parent| try std.fs.cwd().makePath(parent);
+    try std.fs.makeDirAbsolute(out_dir_abs);
+    defer std.fs.cwd().deleteTree(out_dir_abs) catch {};
+    const manifest_path = try std.fs.path.join(allocator, &.{ out_dir_abs, "manifest.json" });
+    defer allocator.free(manifest_path);
 
     var mbuf: std.ArrayList(u8) = .empty;
     defer mbuf.deinit(allocator);
@@ -135,10 +140,6 @@ fn exportOne(
         }
         try out.writeAll("]}");
     }
-    var mf = try std.fs.createFileAbsolute(manifest_path, .{ .exclusive = true });
-    defer mf.close();
-    try mf.writeAll(mbuf.items);
-
     // Blobs.
     var copied: usize = 0;
     var it = referenced.iterator();
@@ -157,8 +158,31 @@ fn exportOne(
         const f = try std.fs.createFileAbsolute(dest, .{ .exclusive = true });
         defer f.close();
         try f.writeAll(bytes);
+        try f.sync();
         copied += 1;
     }
+    var mf = try std.fs.createFileAbsolute(manifest_path, .{ .exclusive = true });
+    defer mf.close();
+    try mf.writeAll(mbuf.items);
+
+    try mf.sync();
+    // Persist directory entries as well as file bytes before publication.
+    var stage = try std.fs.openDirAbsolute(out_dir_abs, .{ .iterate = true });
+    defer stage.close();
+    var walker = try stage.walk(allocator);
+    defer walker.deinit();
+    while (try walker.next()) |entry| {
+        if (entry.kind == .directory) {
+            var dir = try stage.openDir(entry.path, .{ .iterate = true });
+            defer dir.close();
+            try std.posix.fsync(dir.fd);
+        }
+    }
+    try std.posix.fsync(stage.fd);
+    try std.fs.renameAbsolute(out_dir_abs, abs_dir);
+    var parent = try std.fs.openDirAbsolute(std.fs.path.dirname(abs_dir).?, .{ .iterate = true });
+    defer parent.close();
+    try std.posix.fsync(parent.fd);
     return copied;
 }
 

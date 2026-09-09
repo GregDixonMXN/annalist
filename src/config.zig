@@ -57,11 +57,10 @@ fn newProjectId(allocator: std.mem.Allocator) ![]u8 {
         allocator,
         "{x:0>2}{x:0>2}{x:0>2}{x:0>2}-{x:0>2}{x:0>2}-{x:0>2}{x:0>2}-{x:0>2}{x:0>2}-{x:0>2}{x:0>2}{x:0>2}{x:0>2}{x:0>2}{x:0>2}",
         .{
-            bytes[0], bytes[1], bytes[2], bytes[3],
-            bytes[4], bytes[5],
-            bytes[6], bytes[7],
-            bytes[8], bytes[9],
-            bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15],
+            bytes[0],  bytes[1],  bytes[2],  bytes[3],
+            bytes[4],  bytes[5],  bytes[6],  bytes[7],
+            bytes[8],  bytes[9],  bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15],
         },
     );
 }
@@ -98,7 +97,7 @@ pub fn runInit(allocator: std.mem.Allocator) !void {
     var file_buf: [1024]u8 = undefined;
     var file_writer = file.writer(&file_buf);
     try file_writer.interface.print(
-        \\# Annalist project config. Identity only — history lives in the user data dir.
+        \\# Annalist project config. Local settings. File versions live in .annalist/objects; session index in the user data dir.
         \\project_id = "{s}"
         \\version = 1
         \\
@@ -114,6 +113,7 @@ pub fn runInit(allocator: std.mem.Allocator) !void {
     }
 
     try out.print("Initialized annalist project {s} in {s}\n", .{ project_id, dir_path });
+    try out.writeAll("Next: annalist run -- <command>\nThen: annalist ui\nRecording includes command arguments and eligible file contents. Review ignores before recording.\nKeep .annalist/ out of version control. See README for limits and backups.\n");
     try out.flush();
     log.info("project {s} initialized", .{project_id});
 }
@@ -246,10 +246,14 @@ pub fn writeCurrentBranch(allocator: std.mem.Allocator, project_root: []const u8
     }
     try kept.appendSlice(allocator, "[branch]\n");
     try kept.writer(allocator).print("current = \"{s}\"\n", .{name});
-    const f = try std.fs.createFileAbsolute(config_path, .{ .truncate = true });
-    defer f.close();
-    try f.writeAll(kept.items);
- }
+    var dir = try std.fs.openDirAbsolute(std.fs.path.dirname(config_path).?, .{});
+    defer dir.close();
+    var af = try dir.atomicFile(CONFIG_FILE_NAME, .{ .mode = 0o600, .write_buffer = &.{} });
+    defer af.deinit();
+    try af.file_writer.file.writeAll(kept.items);
+    try af.file_writer.file.sync();
+    try af.finish();
+}
 
 /// Read [retention] max_age_days from config.toml. Default 0 (keep forever).
 pub fn readRetentionDays(allocator: std.mem.Allocator, project_root: []const u8) !i64 {
@@ -304,9 +308,13 @@ pub fn writeRetentionDays(allocator: std.mem.Allocator, project_root: []const u8
     }
     try kept.appendSlice(allocator, "[retention]\n");
     try kept.writer(allocator).print("max_age_days = {d}\n", .{days});
-    const f = try std.fs.createFileAbsolute(config_path, .{ .truncate = true });
-    defer f.close();
-    try f.writeAll(kept.items);
+    var dir = try std.fs.openDirAbsolute(std.fs.path.dirname(config_path).?, .{});
+    defer dir.close();
+    var af = try dir.atomicFile(CONFIG_FILE_NAME, .{ .mode = 0o600, .write_buffer = &.{} });
+    defer af.deinit();
+    try af.file_writer.file.writeAll(kept.items);
+    try af.file_writer.file.sync();
+    try af.finish();
 }
 
 /// Read [ui] port from config.toml. Default 8901; 0 is rejected (fixed port).

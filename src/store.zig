@@ -31,16 +31,22 @@ pub fn put(
     const path = try blobPath(allocator, project_root, &hex);
     defer allocator.free(path);
 
-    // Fast path: already stored.
-    std.fs.accessAbsolute(path, .{}) catch {
-        if (std.fs.path.dirname(path)) |dir| {
-            std.fs.cwd().makePath(dir) catch {};
-        }
-        const f = try std.fs.createFileAbsolute(path, .{ .exclusive = true });
-        defer f.close();
-        try f.writeAll(bytes);
+    if (get(allocator, project_root, &hex, bytes.len + 1)) |existing| {
+        allocator.free(existing);
         return allocator.dupe(u8, &hex);
-    };
+    } else |err| {
+        if (err != error.FileNotFound) return err;
+    }
+    const dir_path = std.fs.path.dirname(path).?;
+    try std.fs.cwd().makePath(dir_path);
+    var dir = try std.fs.openDirAbsolute(dir_path, .{ .iterate = true });
+    defer dir.close();
+    var af = try dir.atomicFile(std.fs.path.basename(path), .{ .mode = 0o600, .write_buffer = &.{} });
+    defer af.deinit();
+    try af.file_writer.file.writeAll(bytes);
+    try af.file_writer.file.sync();
+    try af.finish();
+    try std.posix.fsync(dir.fd);
     return allocator.dupe(u8, &hex);
 }
 
@@ -52,11 +58,17 @@ pub fn get(
     max_bytes: usize,
 ) ![]u8 {
     if (hex.len != hash.HASH_HEX_LEN) return error.BadHash;
+    for (hex) |ch| if (!((ch >= '0' and ch <= '9') or (ch >= 'a' and ch <= 'f'))) return error.BadHash;
     var fixed: [hash.HASH_HEX_LEN]u8 = undefined;
     @memcpy(&fixed, hex);
     const path = try blobPath(allocator, project_root, &fixed);
     defer allocator.free(path);
-    return std.fs.cwd().readFileAlloc(allocator, path, max_bytes);
+    const bytes = try std.fs.cwd().readFileAlloc(allocator, path, max_bytes);
+    errdefer allocator.free(bytes);
+    var digest: [hash.HASH_HEX_LEN]u8 = undefined;
+    hash.sha256Hex(bytes, &digest);
+    if (!std.mem.eql(u8, &digest, hex)) return error.CorruptBlob;
+    return bytes;
 }
 
 const testing = std.testing;
@@ -76,4 +88,20 @@ test "blob round trip + dedup" {
     const back = try get(testing.allocator, root, h1, 1024);
     defer testing.allocator.free(back);
     try testing.expectEqualStrings("hello world", back);
+}
+
+test "corrupt existing blob is refused on read and put" {
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const root = try tmp.dir.realpathAlloc(testing.allocator, ".");
+    defer testing.allocator.free(root);
+    const hex = try put(testing.allocator, root, "original");
+    defer testing.allocator.free(hex);
+    var fixed: [hash.HASH_HEX_LEN]u8 = undefined;
+    @memcpy(&fixed, hex);
+    const path = try blobPath(testing.allocator, root, &fixed);
+    defer testing.allocator.free(path);
+    try std.fs.cwd().writeFile(.{ .sub_path = path, .data = "tampered" });
+    try testing.expectError(error.CorruptBlob, get(testing.allocator, root, hex, 1024));
+    try testing.expectError(error.CorruptBlob, put(testing.allocator, root, "original"));
 }

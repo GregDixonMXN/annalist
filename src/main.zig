@@ -14,19 +14,21 @@ const branch = @import("branch.zig");
 const policy = @import("policy.zig");
 const unbundle = @import("import.zig");
 
-pub const version_string = "0.4.0";
+pub const version_string = "1.0.0-rc.1";
 
 const ProjectCtx = struct {
     root: []u8,
     id: []u8,
+    lock: ?std.fs.File,
 
     fn deinit(self: *ProjectCtx, allocator: std.mem.Allocator) void {
+        if (self.lock) |f| f.close();
         allocator.free(self.root);
         allocator.free(self.id);
     }
 };
 
-fn requireProject(allocator: std.mem.Allocator) !ProjectCtx {
+fn requireProject(allocator: std.mem.Allocator, lock: bool) !ProjectCtx {
     const root = try config.findProjectRoot(allocator) orelse {
         log.err("not an annalist project (no .annalist/ found). Run `annalist init` first.", .{});
         std.process.exit(4);
@@ -36,7 +38,13 @@ fn requireProject(allocator: std.mem.Allocator) !ProjectCtx {
         log.err("project config unreadable. Re-run `annalist init`?", .{});
         std.process.exit(4);
     };
-    return .{ .root = root, .id = id };
+    const lock_path = try std.fs.path.join(allocator, &.{ root, ".annalist", "operation.lock" });
+    defer allocator.free(lock_path);
+    const file: ?std.fs.File = if (lock) std.fs.createFileAbsolute(lock_path, .{ .truncate = false, .lock = .exclusive, .lock_nonblocking = true, .mode = 0o600 }) catch {
+        log.err("project busy: stop the other recording or maintenance command first", .{});
+        std.process.exit(1);
+    } else null;
+    return .{ .root = root, .id = id, .lock = file };
 }
 
 pub fn main() !void {
@@ -44,6 +52,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
+    session.child_umask = std.c.umask(0o077);
     log.init();
 
     const args = try std.process.argsAlloc(allocator);
@@ -95,7 +104,7 @@ pub fn main() !void {
             std.process.exit(1);
         },
         .run => |r| {
-            var proj = try requireProject(allocator);
+            var proj = try requireProject(allocator, true);
             defer proj.deinit(allocator);
             // runSession finalizes the row then exits with the child's code.
             session.runSession(allocator, proj.id, proj.root, r.child_argv, r.branch) catch |err| {
@@ -107,7 +116,7 @@ pub fn main() !void {
             };
         },
         .sessions => |opts| {
-            var proj = try requireProject(allocator);
+            var proj = try requireProject(allocator, false);
             defer proj.deinit(allocator);
             var database = session.openDb(allocator) catch |err| {
                 log.err("cannot open database: {s}", .{@errorName(err)});
@@ -120,7 +129,7 @@ pub fn main() !void {
             };
         },
         .inspect => |opts| {
-            var proj = try requireProject(allocator);
+            var proj = try requireProject(allocator, false);
             defer proj.deinit(allocator);
             var database = session.openDb(allocator) catch |err| {
                 log.err("cannot open database: {s}", .{@errorName(err)});
@@ -137,19 +146,20 @@ pub fn main() !void {
             };
         },
         .ui => {
-            var proj = try requireProject(allocator);
+            var proj = try requireProject(allocator, false);
             defer proj.deinit(allocator);
             const port = config.readUiPort(allocator, proj.root) catch 8901;
             const database = try session.openDb(allocator);
             var srv = server.Server.init(allocator, database, proj.id, proj.root);
-            defer srv.deinit();
+            // ProjectCtx owns the project strings; server borrows them.
+            defer srv.database.close();
             srv.serve(port) catch |err| {
                 log.err("ui server failed: {s}", .{@errorName(err)});
                 std.process.exit(1);
             };
         },
         .doctor => |opts| {
-            var proj = try requireProject(allocator);
+            var proj = try requireProject(allocator, true);
             defer proj.deinit(allocator);
             var database = try session.openDb(allocator);
             defer database.close();
@@ -159,11 +169,11 @@ pub fn main() !void {
             };
             const problems: i64 = (if (opts.fix) @as(i64, 0) else rep.stale_sessions) +
                 (if (rep.integrity_ok) @as(i64, 0) else @as(i64, 1)) +
-                rep.missing_blobs + (if (opts.gc) @as(i64, 0) else (rep.orphan_blobs - rep.collected));
+                rep.missing_blobs + (if (opts.gc) rep.orphan_blobs - rep.collected else @as(i64, 0));
             if (problems > 0) std.process.exit(1);
         },
         .diff => |opts| {
-            var proj = try requireProject(allocator);
+            var proj = try requireProject(allocator, false);
             defer proj.deinit(allocator);
             var database = try session.openDb(allocator);
             defer database.close();
@@ -177,7 +187,7 @@ pub fn main() !void {
             };
         },
         .bundle => |opts| {
-            var proj = try requireProject(allocator);
+            var proj = try requireProject(allocator, true);
             defer proj.deinit(allocator);
             var database = try session.openDb(allocator);
             defer database.close();
@@ -194,7 +204,7 @@ pub fn main() !void {
             };
         },
         .branch => |opts| {
-            var proj = try requireProject(allocator);
+            var proj = try requireProject(allocator, true);
             defer proj.deinit(allocator);
             var database = try session.openDb(allocator);
             defer database.close();
@@ -207,7 +217,7 @@ pub fn main() !void {
             };
         },
         .policy => |opts| {
-            var proj = try requireProject(allocator);
+            var proj = try requireProject(allocator, true);
             defer proj.deinit(allocator);
             policy.runPolicy(allocator, proj.root, opts.set_max_age) catch |err| {
                 switch (err) {
@@ -218,7 +228,7 @@ pub fn main() !void {
             };
         },
         .prune => |opts| {
-            var proj = try requireProject(allocator);
+            var proj = try requireProject(allocator, true);
             defer proj.deinit(allocator);
             var database = try session.openDb(allocator);
             defer database.close();
@@ -232,7 +242,7 @@ pub fn main() !void {
             };
         },
         .unbundle => |opts| {
-            var proj = try requireProject(allocator);
+            var proj = try requireProject(allocator, true);
             defer proj.deinit(allocator);
             var database = try session.openDb(allocator);
             defer database.close();
@@ -252,18 +262,18 @@ pub fn main() !void {
             std.process.exit(3);
         },
         .rewind => |opts| {
-            var proj = try requireProject(allocator);
+            var proj = try requireProject(allocator, true);
             defer proj.deinit(allocator);
             var database = try session.openDb(allocator);
             defer database.close();
-            rewind.runRewind(allocator, &database, proj.id, proj.root, opts.id, opts.seq, opts.force) catch |err| {
+            rewind.runRewind(allocator, &database, proj.id, proj.root, opts.id, opts.seq, opts.force, opts.dry_run) catch |err| {
                 switch (err) {
                     error.NoSuchSession => log.err("no session '{s}' in this project", .{opts.id}),
                     error.BadSessionId => log.err("bad session id '{s}'", .{opts.id}),
                     error.BadSeq => log.err("bad event seq (must be a positive integer)", .{}),
                     error.NothingToRewind => log.err("session '{s}' recorded no file changes", .{opts.id}),
                     error.UnsafePath => log.err("refusing: session contains paths outside the project", .{}),
-                    error.BlobMissing => log.err("rewind incomplete: content missing from object store (run doctor)", .{}),
+                    error.FileNotFound => log.err("rewind incomplete: content missing from object store (run doctor)", .{}),
                     error.Divergent => std.process.exit(1),
                     else => log.err("rewind failed: {s}", .{@errorName(err)}),
                 }
@@ -271,4 +281,30 @@ pub fn main() !void {
             };
         },
     }
+}
+
+test {
+    std.testing.refAllDecls(@This());
+    std.testing.refAllDecls(@import("branch.zig"));
+    std.testing.refAllDecls(@import("cli.zig"));
+    std.testing.refAllDecls(@import("config.zig"));
+    std.testing.refAllDecls(@import("db.zig"));
+    std.testing.refAllDecls(@import("diff.zig"));
+    std.testing.refAllDecls(@import("doctor.zig"));
+    std.testing.refAllDecls(@import("events.zig"));
+    std.testing.refAllDecls(@import("export.zig"));
+    std.testing.refAllDecls(@import("git.zig"));
+    std.testing.refAllDecls(@import("hash.zig"));
+    std.testing.refAllDecls(@import("ignore.zig"));
+    std.testing.refAllDecls(@import("import.zig"));
+    std.testing.refAllDecls(@import("log.zig"));
+    std.testing.refAllDecls(@import("policy.zig"));
+    std.testing.refAllDecls(@import("record.zig"));
+    std.testing.refAllDecls(@import("rewind.zig"));
+    std.testing.refAllDecls(@import("safe_fs.zig"));
+    std.testing.refAllDecls(@import("scan.zig"));
+    std.testing.refAllDecls(@import("server.zig"));
+    std.testing.refAllDecls(@import("session.zig"));
+    std.testing.refAllDecls(@import("store.zig"));
+    std.testing.refAllDecls(@import("views.zig"));
 }

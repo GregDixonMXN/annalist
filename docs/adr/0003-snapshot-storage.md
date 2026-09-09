@@ -9,11 +9,12 @@ on every change, without ballooning disk, and without ever risking user data.
 
 Content-addressed blobs under `.annalist/objects/xx/rest` (SHA-256):
 
-- Session start seeds blobs for all files under the size limit (deduplicated).
+- Session start seeds eligible regular files under the size limit (deduplicated).
 - Each change event stores after-blobs; before-blobs resolve from the seed.
-- Files over 10 MB record metadata only (no hash) — explicit, never silent.
+- Files over 10 MiB record metadata only (no stored content hash).
 - Symlinks record target identity, not followed contents.
-- Overwrite via exclusive create; identical content stored once.
+- Verify content on reads; publish new objects using synchronized temporary
+  files and atomic rename. Existing corrupt objects fail validation.
 
 ## Alternatives
 
@@ -23,7 +24,10 @@ Content-addressed blobs under `.annalist/objects/xx/rest` (SHA-256):
 
 ## Consequences
 
-- Every observed version is retrievable today (`inspect --file` proves it);
-  rewind later is a checkout operation, not a research project.
-- `.annalist/` grows with unique content; `annalist doctor` (future) can GC
-  unreferenced blobs.
+- Only successfully captured regular-file content is recoverable. Polling can
+  miss short-lived changes, and unreadable or oversized files have limits.
+- `.annalist/` grows with unique content; `annalist doctor --gc` collects
+  unreferenced blobs when the project is not recording.
+- Rewind validates required content and safe destinations before mutation,
+  retains pre-recovery copies, and replaces individual files atomically.
+  Whole-tree recovery is not an atomic filesystem transaction.

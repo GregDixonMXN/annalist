@@ -5,6 +5,16 @@ const std = @import("std");
 
 pub const default_ignores = [_][]const u8{
     ".git/**",
+    ".env",
+    ".env.*",
+    "*.pem",
+    "*.key",
+    "id_rsa",
+    "id_ed25519",
+    ".ssh/**",
+    ".aws/**",
+    ".venv/**",
+    "__pycache__/**",
     ".annalist/**",
     "node_modules/**",
     "zig-cache/**",
@@ -69,6 +79,13 @@ pub fn matches(pattern: []const u8, rel_path: []const u8) bool {
 pub fn isIgnored(patterns: []const []const u8, rel_path: []const u8) bool {
     if (matches(".annalist/**", rel_path)) return true;
     if (std.mem.eql(u8, rel_path, ".annalist")) return true;
+    // Built-in sensitive/cache names apply at every directory depth.
+    var components = std.mem.splitScalar(u8, rel_path, '/');
+    var offset: usize = 0;
+    while (components.next()) |component| {
+        for (default_ignores) |p| if (matches(p, rel_path[offset..])) return true;
+        offset += component.len + 1;
+    }
     for (patterns) |p| {
         if (matches(p, rel_path)) return true;
     }

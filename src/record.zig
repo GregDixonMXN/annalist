@@ -19,6 +19,7 @@ pub const Recorder = struct {
     queue: *events.Queue,
     stop: std.atomic.Value(bool),
     thread: ?std.Thread = null,
+    failed: std.atomic.Value(bool) = std.atomic.Value(bool).init(false),
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -71,6 +72,7 @@ pub const Recorder = struct {
             std.Thread.sleep(POLL_INTERVAL_NS);
             if (self.stop.load(.seq_cst)) break;
             self.rescan() catch |err| {
+                self.failed.store(true, .seq_cst);
                 log.warn("rescan failed: {s}", .{@errorName(err)});
             };
         }
@@ -80,12 +82,17 @@ pub const Recorder = struct {
         var it = base.map.iterator();
         while (it.next()) |kv| {
             const entry = kv.value_ptr;
-            if (!entry.hashed or entry.kind != .file) continue;
+            if (entry.kind != .file) {
+                entry.hashed = false;
+                continue;
+            }
+            if (!entry.hashed) continue;
             const abs = try std.fs.path.join(allocator, &.{ project_root, kv.key_ptr.* });
             defer allocator.free(abs);
-            const content = readCapped(allocator, abs, scan.MAX_FILE_BYTES) catch continue;
+            const content = (try @import("safe_fs.zig").read(allocator, project_root, kv.key_ptr.*, scan.MAX_FILE_BYTES)) orelse return error.FileNotFound;
             defer allocator.free(content);
-            const stored = store.put(allocator, project_root, content) catch continue;
+            const stored = try store.put(allocator, project_root, content);
+            @memcpy(&entry.hash_hex, stored);
             allocator.free(stored);
         }
     }
@@ -177,6 +184,7 @@ pub const Recorder = struct {
             const nt = new_entry.symlink_target orelse "";
             return !std.mem.eql(u8, ot, nt);
         }
+        if (old.hashed != new_entry.hashed) return true;
         if (old.hashed and new_entry.hashed)
             return !std.mem.eql(u8, &old.hash_hex, &new_entry.hash_hex);
         return old.size != new_entry.size or old.mtime_ns != new_entry.mtime_ns;
@@ -190,11 +198,20 @@ pub const Recorder = struct {
         if (!entry.hashed or entry.kind != .file) return null;
         const abs = self.absPath(rel) catch return null;
         defer self.allocator.free(abs);
-        const content = readCapped(self.allocator, abs, scan.MAX_FILE_BYTES) catch return null;
+        const content = (@import("safe_fs.zig").read(self.allocator, self.project_root, rel, scan.MAX_FILE_BYTES) catch {
+            self.failed.store(true, .seq_cst);
+            return null;
+        }) orelse {
+            self.failed.store(true, .seq_cst);
+            return null;
+        };
         defer self.allocator.free(content);
         // Re-hash what we actually read and report THAT hash: the recorded
         // state must reference stored bytes, never scanned-but-unstored ones.
-        const stored = store.put(self.allocator, self.project_root, content) catch return null;
+        const stored = store.put(self.allocator, self.project_root, content) catch {
+            self.failed.store(true, .seq_cst);
+            return null;
+        };
         defer self.allocator.free(stored);
         var out: [hash.HASH_HEX_LEN]u8 = undefined;
         @memcpy(&out, stored[0..hash.HASH_HEX_LEN]);
@@ -280,4 +297,11 @@ fn readCapped(allocator: std.mem.Allocator, abs_path: []const u8, limit: u64) ![
         try out.appendSlice(allocator, buf[0..n]);
     }
     return out.toOwnedSlice(allocator);
+}
+
+test "unstored file observation must retry storage" {
+    const old = scan.Entry{ .size = 1, .mtime_ns = 1, .hash_hex = [_]u8{0} ** hash.HASH_HEX_LEN, .hashed = false, .is_binary = false, .kind = .file };
+    var next = old;
+    next.hashed = true;
+    try std.testing.expect(Recorder.entryChanged(old, next));
 }

@@ -48,7 +48,7 @@ const Manifest = struct {
 fn validHex(h: []const u8) bool {
     if (h.len != hash.HASH_HEX_LEN) return false;
     for (h) |ch| {
-        const ok = (ch >= '0' and ch <= '9') or (ch >= 'a' and ch <= 'f') or (ch >= 'A' and ch <= 'F');
+        const ok = (ch >= '0' and ch <= '9') or (ch >= 'a' and ch <= 'f');
         if (!ok) return false;
     }
     return true;
@@ -87,6 +87,38 @@ pub fn runImport(
     const m = parsed.value;
     if (m.format != 1) return error.BadBundle;
 
+    if (!session.validTimestamp(m.session.started_at) or !session.validTimestamp(m.session.ended_at orelse return error.BadBundle) or m.session.ended_at.? < m.session.started_at) return error.BadBundle;
+    const status_ok = std.mem.eql(u8, m.session.status, "success") or std.mem.eql(u8, m.session.status, "failed") or std.mem.eql(u8, m.session.status, "interrupted") or std.mem.eql(u8, m.session.status, "signaled");
+    if (!status_ok) return error.BadBundle;
+    if (m.session.exit_code) |code| {
+        if (code < 0 or code > 255) return error.BadBundle;
+    }
+    var previous_seq: i64 = -1;
+    for (m.events) |ev| {
+        if (ev.seq <= previous_seq or ev.size < 0 or !session.validTimestamp(ev.ts)) return error.BadBundle;
+        previous_seq = ev.seq;
+        if (std.mem.startsWith(u8, ev.type, "file_")) {
+            if (!@import("safe_fs.zig").validPath(ev.path)) return error.BadBundle;
+            if (std.mem.eql(u8, ev.type, "file_renamed")) {
+                if (!@import("safe_fs.zig").validPath(ev.prev_path orelse return error.BadBundle)) return error.BadBundle;
+            } else {
+                if (!std.mem.eql(u8, ev.type, "file_created") and !std.mem.eql(u8, ev.type, "file_modified") and !std.mem.eql(u8, ev.type, "file_deleted")) return error.BadBundle;
+                if ((ev.prev_path orelse "").len != 0) return error.BadBundle;
+            }
+            if (std.mem.eql(u8, ev.type, "file_created") and ev.prev_hash != null) return error.BadBundle;
+            if (std.mem.eql(u8, ev.type, "file_deleted") and ev.new_hash != null) return error.BadBundle;
+        } else {
+            const known = std.mem.eql(u8, ev.type, "session_started") or std.mem.eql(u8, ev.type, "session_ended") or std.mem.eql(u8, ev.type, "process_started") or std.mem.eql(u8, ev.type, "process_exited") or std.mem.eql(u8, ev.type, "error") or std.mem.eql(u8, ev.type, "git_state");
+            if (!known or ev.prev_hash != null or ev.new_hash != null) return error.BadBundle;
+            if (!std.mem.eql(u8, ev.type, "git_state") and (ev.path.len != 0 or (ev.prev_path orelse "").len != 0)) return error.BadBundle;
+        }
+    }
+    if (m.session.ended_at == null or std.mem.eql(u8, m.session.status, "running")) return error.BadBundle;
+    if (m.session.argv_json != .array) return error.BadBundle;
+    for (m.session.argv_json.array.items) |arg| if (arg != .string) return error.BadBundle;
+    try database.exec("BEGIN IMMEDIATE;");
+    errdefer database.exec("ROLLBACK;") catch {};
+    try session.ensureProject(database, project_id, project_root);
     // Dedup guard.
     {
         var q = try database.prepare(
@@ -168,13 +200,14 @@ pub fn runImport(
         try ie.bindInt64(3, ev.ts);
         try ie.bindText(4, ev.type);
         try ie.bindText(5, ev.path);
-        if (ev.prev_path) |p| try ie.bindText(6, p) else try ie.bindNull(6);
+        if (ev.prev_path) |p| try ie.bindText(6, p) else try ie.bindText(6, "");
         if (ev.prev_hash) |h| try ie.bindText(7, h) else try ie.bindNull(7);
         if (ev.new_hash) |h| try ie.bindText(8, h) else try ie.bindNull(8);
         try ie.bindInt64(9, ev.size);
         _ = try ie.step();
     }
 
+    try database.exec("COMMIT;");
     const pad = try session.padId(allocator, new_id);
     defer allocator.free(pad);
     try out.print("imported {d} event(s) as session {s} on branch '{s}'\n", .{ m.events.len, pad, branch });

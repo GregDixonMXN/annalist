@@ -1,0 +1,28 @@
+name: Verify Linux release candidate
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SQLite headers
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+      - name: Install Zig 0.15.2
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+      - run: sh scripts/check.sh
+      - name: Verify archive in a minimal unprivileged runtime
+        run: sh scripts/check-container.sh dist/annalist-*-linux-x86_64.tar.gz
+      - name: Install browser test dependencies
+        run: |
+          npm install --no-save --package-lock=false playwright@1.62.1
+          npx playwright install --with-deps chromium
+      - name: Verify dashboard in Chromium
+        run: node tests/dashboard.cjs zig-out/bin/annalist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: annalist-linux-release-candidate
+          path: dist/*

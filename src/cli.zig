@@ -76,6 +76,7 @@ pub const DiffOpts = struct {
 };
 
 pub const RewindOpts = struct {
+    dry_run: bool = false,
     id: []const u8,
     seq: ?[]const u8 = null,
     force: bool = false,
@@ -98,7 +99,10 @@ pub fn parse(args: []const []const u8) ParseError!Command {
         return .help;
     if (std.mem.eql(u8, name, "version") or std.mem.eql(u8, name, "--version") or std.mem.eql(u8, name, "-V"))
         return .version;
-    if (std.mem.eql(u8, name, "init")) return .init;
+    if (std.mem.eql(u8, name, "init")) {
+        if (args.len != 2) return ParseError.InvalidArgs;
+        return .init;
+    }
     if (std.mem.eql(u8, name, "sessions")) {
         var branch: ?[]const u8 = null;
         var i: usize = 2;
@@ -162,18 +166,24 @@ pub fn parse(args: []const []const u8) ParseError!Command {
         }
         return Command{ .unbundle = .{ .dir = args[2], .force = force } };
     }
-    if (std.mem.eql(u8, name, "ui")) return .ui;
+    if (std.mem.eql(u8, name, "ui")) {
+        if (args.len != 2) return ParseError.InvalidArgs;
+        return .ui;
+    }
     if (std.mem.eql(u8, name, "doctor")) {
         var fix = false;
         var gc = false;
         for (args[2..]) |a| {
-            if (std.mem.eql(u8, a, "--fix")) fix = true;
-            if (std.mem.eql(u8, a, "--gc")) gc = true;
+            if (std.mem.eql(u8, a, "--fix")) {
+                fix = true;
+            } else if (std.mem.eql(u8, a, "--gc")) {
+                gc = true;
+            } else return ParseError.InvalidArgs;
         }
         return Command{ .doctor = .{ .fix = fix, .gc = gc } };
     }
     if (std.mem.eql(u8, name, "diff")) {
-        if (args.len < 4) return ParseError.MissingDiffIds;
+        if (args.len != 4) return ParseError.MissingDiffIds;
         return Command{ .diff = .{ .a = args[2], .b = args[3] } };
     }
     if (std.mem.eql(u8, name, "export")) {
@@ -195,23 +205,27 @@ pub fn parse(args: []const []const u8) ParseError!Command {
                 return ParseError.MissingExportTarget;
             }
         }
+        if (all and id != null) return ParseError.InvalidArgs;
         if (!all and id == null) return ParseError.MissingExportTarget;
         return Command{ .bundle = .{ .id = id, .out = out, .all = all } };
     }
     if (std.mem.eql(u8, name, "rewind")) {
         if (args.len < 3) return ParseError.MissingRewindTarget;
         var seq: ?[]const u8 = null;
+        var dry_run = false;
         var force = false;
         for (args[3..]) |a| {
             if (std.mem.eql(u8, a, "--force")) {
                 force = true;
-            } else if (seq == null) {
+            } else if (std.mem.eql(u8, a, "--dry-run")) {
+                dry_run = true;
+            } else if (seq == null and !std.mem.startsWith(u8, a, "-")) {
                 seq = a;
             } else {
                 return ParseError.MissingRewindTarget;
             }
         }
-        return Command{ .rewind = .{ .id = args[2], .seq = seq, .force = force } };
+        return Command{ .rewind = .{ .id = args[2], .seq = seq, .force = force, .dry_run = dry_run } };
     }
 
     if (std.mem.eql(u8, name, "run")) {
@@ -252,7 +266,7 @@ pub fn parse(args: []const []const u8) ParseError!Command {
                 i += 1;
                 if (i >= args.len) return ParseError.MissingSessionId;
                 file = args[i];
-            }
+            } else return ParseError.InvalidArgs;
         }
         return Command{ .inspect = .{ .id = args[2], .json = as_json, .file = file } };
     }
@@ -286,7 +300,7 @@ pub fn printHelp() !void {
         \\  annalist branch [name]               list or switch workstream
         \\  annalist inspect <session-id>        inspect a session
         \\  annalist diff <a> <b>                  compare two sessions
-        \\  annalist rewind <session> [seq] [--force]  restore files to a recorded point
+        \\  annalist rewind <session> [seq] [--dry-run] [--force]  restore files to a recorded point
         \\  annalist export <session>|--all [--out <dir>]  portable session bundle(s)
         \\  annalist import <dir> [--force]          restore session(s) from a bundle
         \\  annalist policy [--set-max-age <days>]  show/set retention
@@ -298,7 +312,7 @@ pub fn printHelp() !void {
         \\
         \\Examples:
         \\  annalist run -- codex
-        \\  annalist run -- claude --dangerously-skip-permissions -p "fix tests"
+        \\  annalist run -- claude -p "fix tests"
         \\
     );
     try out.flush();
@@ -323,8 +337,7 @@ test "parse inspect requires id" {
     try testing.expectError(ParseError.MissingSessionId, parse(&args));
 }
 
-test "future commands route to roadmap stub" {
+test "rewind requires a target" {
     const args = [_][]const u8{ "annalist", "rewind" };
-    const cmd = try parse(&args);
-    try testing.expect(cmd == .future);
+    try testing.expectError(ParseError.MissingRewindTarget, parse(&args));
 }

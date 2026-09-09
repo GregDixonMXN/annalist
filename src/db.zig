@@ -24,9 +24,11 @@ pub const Db = struct {
             return DbError.OpenFailed;
         }
         // Crash resistance basics.
-        _ = c.sqlite3_exec(db, "PRAGMA journal_mode=WAL;", null, null, null);
-        _ = c.sqlite3_exec(db, "PRAGMA synchronous=NORMAL;", null, null, null);
-        _ = c.sqlite3_exec(db, "PRAGMA foreign_keys=ON;", null, null, null);
+        _ = c.sqlite3_busy_timeout(db, 5000);
+        if (c.sqlite3_exec(db, "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;", null, null, null) != c.SQLITE_OK) {
+            _ = c.sqlite3_close(db);
+            return DbError.OpenFailed;
+        }
         return .{ .handle = db };
     }
 
@@ -56,6 +58,8 @@ pub const Db = struct {
     }
 
     pub fn migrate(self: *Db, allocator: std.mem.Allocator) DbError!void {
+        try self.exec("BEGIN IMMEDIATE;");
+        errdefer self.exec("ROLLBACK;") catch {};
         self.exec(
             \\CREATE TABLE IF NOT EXISTS schema_migrations(
             \\  version INTEGER PRIMARY KEY,
@@ -75,6 +79,7 @@ pub const Db = struct {
             ) catch return DbError.OutOfMemory;
             self.exec(stmt) catch return DbError.MigrateFailed;
         }
+        try self.exec("COMMIT;");
     }
 
     const Migration = struct {

@@ -58,9 +58,12 @@ pub fn runPrune(
     var days: i64 = try config.readRetentionDays(allocator, project_root);
     if (older_than) |s| {
         days = std.fmt.parseInt(i64, s, 10) catch return error.BadRetention;
-        if (days <= 0) return error.BadRetention;
+        if (days <= 0 or days > 36500) return error.BadRetention;
     }
     if (days <= 0) return error.NeedRetention;
+    if (days > 36500) return error.BadRetention;
+    try database.exec("BEGIN IMMEDIATE;");
+    errdefer database.exec("ROLLBACK;") catch {};
 
     const cutoff = std.time.milliTimestamp() - days * DAY_MS;
 
@@ -94,6 +97,8 @@ pub fn runPrune(
         sessions += 1;
     }
 
+    try database.exec("COMMIT;");
+
     // Sweep blobs left unreferenced by this project's remaining events.
     var freed_blobs: i64 = 0;
     var freed_bytes: i64 = 0;
@@ -105,10 +110,11 @@ pub fn runPrune(
             referenced.deinit();
         }
         var q = try database.prepare(
-            "SELECT e.prev_hash, e.new_hash FROM events e JOIN sessions s ON s.id = e.session_id WHERE s.project_id = ?1 AND (e.prev_hash IS NOT NULL OR e.new_hash IS NOT NULL);",
+            "SELECT e.prev_hash, e.new_hash FROM events e JOIN sessions s ON s.id = e.session_id WHERE s.project_id = ?1 AND (s.ended_at IS NULL OR s.ended_at >= ?2) AND (e.prev_hash IS NOT NULL OR e.new_hash IS NOT NULL);",
         );
         defer q.finalize();
         try q.bindText(1, project_id);
+        try q.bindInt64(2, cutoff);
         while (try q.step()) {
             for ([2]c_int{ 0, 1 }) |col| {
                 if (!q.columnIsNull(col)) {

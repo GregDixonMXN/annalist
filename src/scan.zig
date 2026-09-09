@@ -83,15 +83,21 @@ pub fn scanDir(
     defer walker.deinit();
 
     while (try walker.next()) |entry| {
+        if (ignore.isIgnored(patterns, entry.path)) {
+            if (entry.kind == .directory) {
+                var skipped = walker.stack.pop().?;
+                skipped.iter.dir.close();
+            }
+            continue;
+        }
         if (entry.kind != .file and entry.kind != .sym_link) continue;
-        if (ignore.isIgnored(patterns, entry.path)) continue;
 
         const abs = try std.fs.path.join(allocator, &.{ project_root, entry.path });
         defer allocator.free(abs);
 
         if (entry.kind == .sym_link) {
             var link_buf: [std.fs.max_path_bytes]u8 = undefined;
-            const target = std.posix.readlink(abs, &link_buf) catch continue;
+            const target = try std.posix.readlink(abs, &link_buf);
             var hex: [hash.HASH_HEX_LEN]u8 = undefined;
             hash.sha256Hex(target, &hex);
             const key = try allocator.dupe(u8, entry.path);
@@ -101,7 +107,7 @@ pub fn scanDir(
                 .size = @intCast(target.len),
                 .mtime_ns = 0,
                 .hash_hex = hex,
-                .hashed = true,
+                .hashed = false,
                 .is_binary = false,
                 .kind = .symlink,
                 .symlink_target = tgt,
@@ -109,7 +115,7 @@ pub fn scanDir(
             continue;
         }
 
-        const stat = std.fs.cwd().statFile(abs) catch continue;
+        const stat = try std.fs.cwd().statFile(abs);
         const key = try allocator.dupe(u8, entry.path);
         errdefer allocator.free(key);
         const size_i64: i64 = @intCast(@min(stat.size, std.math.maxInt(i64)));
@@ -124,7 +130,8 @@ pub fn scanDir(
             });
             continue;
         }
-        const content = readCapped(allocator, abs, MAX_FILE_BYTES) catch continue;
+        const safe_bytes = (try @import("safe_fs.zig").read(allocator, project_root, entry.path, MAX_FILE_BYTES + 1)) orelse return error.FileNotFound;
+        const content = .{ .bytes = safe_bytes, .truncated = safe_bytes.len > MAX_FILE_BYTES };
         defer allocator.free(content.bytes);
         if (content.truncated) {
             try map.put(key, .{

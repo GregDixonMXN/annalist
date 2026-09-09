@@ -1,125 +1,26 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Annalist</title>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>Annalist · Work, recorded.</title>
 <style>
-:root { color-scheme: dark; }
-body { font-family: system-ui, sans-serif; background: #0e1113; color: #d7dde2; margin: 0; }
-header { padding: 1rem 1.5rem; border-bottom: 1px solid #232a2f; }
-h1 { font-size: 1.1rem; margin: 0; }
-main { display: grid; grid-template-columns: 340px 1fr; gap: 1px; background: #232a2f; min-height: calc(100vh - 57px); }
-#list { background: #0e1113; padding: 1rem; overflow-y: auto; }
-#detail { background: #121518; padding: 1rem 1.5rem; overflow-y: auto; }
-.session { border: 1px solid #232a2f; border-radius: 8px; padding: 0.6rem 0.8rem; margin-bottom: 0.6rem; cursor: pointer; }
-.session:hover, .session.active { border-color: #4f8ff7; }
-.session .cmd { font-family: monospace; font-size: 0.9rem; }
-.meta { color: #8b949e; font-size: 0.8rem; }
-table.timeline { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
-table.timeline td { border-top: 1px solid #232a2f; padding: 0.25rem 0.5rem; vertical-align: top; }
-td.t { font-family: monospace; white-space: nowrap; color: #8b949e; }
-td.ev { font-family: monospace; }
-.filelink { color: #4f8ff7; cursor: pointer; }
-pre.diff { background: #0b0e10; border: 1px solid #232a2f; border-radius: 8px; padding: 0.75rem; overflow-x: auto; font-size: 0.8rem; }
-.add { color: #7ee787; } .del { color: #ffa198; }
-h2 { font-size: 1rem; } h3 { font-size: 0.9rem; color: #8b949e; }
-.pill { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.75rem; }
-.ok { background: #1a3a24; color: #7ee787; } .bad { background: #3d1d1d; color: #ffa198; }
-</style>
-</head>
-<body>
-<header><h1>● Annalist — flight recorder</h1></header>
-<main>
-<div id="list"><p class="meta">Loading sessions…</p></div>
-<div id="detail"><p class="meta">Select a session.</p></div>
-</main>
+:root{--ink:#172b30;--muted:#5e7275;--paper:#f5f7f5;--line:#dce4df;--green:#176a52;--mint:#e5f2eb;--red:#a2393a;--mono:ui-monospace,SFMono-Regular,Consolas,monospace}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,select{font:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.55}button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #55a489;outline-offset:3px}button{border:1px solid var(--line);background:white;border-radius:8px;padding:9px 14px;color:var(--ink)}button:hover{border-color:#7ea294}a{color:var(--green)}.shell{max-width:1440px;margin:auto;display:grid;grid-template-columns:222px minmax(0,1fr);min-height:100vh}aside{padding:34px 24px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:30px;background:#eef2ee}.brand{font-size:24px;font-weight:750;letter-spacing:-1px}.mark{display:inline-grid;place-items:center;background:var(--ink);color:#b5e2c8;width:32px;height:34px;border-radius:9px;margin-right:9px;font-size:21px}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:1.8px;font-weight:700;color:var(--muted)}.project{overflow-wrap:anywhere;font-weight:650;margin-top:7px}.nav{display:grid;gap:9px}.nav button{text-align:left;background:transparent;border-color:transparent}.nav button[aria-current=page]{background:#dae8df;color:var(--green);font-weight:650}.local{margin-top:auto;font-size:12px;color:var(--muted)}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#33825e;margin-right:7px}main{padding:35px 42px;min-width:0}.top{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:31px}.connection{font-size:12px;color:var(--muted)}h1{font-size:clamp(29px,3vw,40px);line-height:1.2;letter-spacing:-1.5px;margin:8px 0 12px}h2{font-size:19px;letter-spacing:-.5px;margin:0}h3{font-size:15px;margin:0 0 12px}p{margin:8px 0 18px}.muted{color:var(--muted)}.hero{display:flex;align-items:end;justify-content:space-between;gap:25px;margin-bottom:25px}.primary{background:var(--green);border-color:var(--green);color:white;white-space:nowrap}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:28px}.stat{border:1px solid var(--line);background:white;padding:19px 22px;border-radius:12px}.stat strong{display:block;font-size:30px;font-weight:600;letter-spacing:-1px;margin-top:4px}.stat span{font-size:12px;color:var(--muted)}.panel{background:white;border:1px solid var(--line);border-radius:13px;overflow:hidden}.panelhead h2{min-width:0;overflow-wrap:anywhere}.panelhead{padding:21px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}.filters{display:flex;gap:10px;padding:16px 24px;border-bottom:1px solid var(--line)}input,select{border:1px solid var(--line);border-radius:7px;background:#fafcfb;color:var(--ink);padding:10px 12px;min-width:0}input{flex:1;width:100%}table{border-collapse:collapse;width:100%;table-layout:fixed;text-align:left}th:first-child{width:52%}th:nth-child(2){width:20%}th.changescol,th.durationcol{width:14%}th{font-size:10px;letter-spacing:1.3px;text-transform:uppercase;color:var(--muted);font-weight:600;background:#fafbf9}th,td{padding:14px 24px;border-bottom:1px solid #edf1ee}tbody tr:last-child td{border-bottom:0}.command{font-family:var(--mono);font-size:12px;font-weight:550;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.runbutton{display:block;text-align:left;width:100%;max-width:100%;padding:0;border:0;border-radius:2px;background:transparent;color:var(--green)}.sub{font-size:11px;color:var(--muted);margin-top:5px}.badge{display:inline-block;font-size:11px;font-weight:650;border-radius:5px;padding:4px 8px;background:#edf0ef;color:#536b64}.badge.success{background:var(--mint);color:var(--green)}.badge.failed,.badge.interrupted,.badge.signaled{background:#fbecec;color:var(--red)}.badge.running{background:#fff2d7;color:#876114}.empty{text-align:center;padding:55px 25px}.empty h2{margin:10px}.footnote{font-size:12px;color:var(--muted);margin-top:17px;max-width:800px}.notice{background:#fff4dc;border:1px solid #e7d8b4;padding:13px 17px;border-radius:9px;margin:16px 0;font-size:13px}.error{background:#fbecec;border-color:#e7bebe;color:var(--red)}[hidden]{display:none!important}.back{margin-bottom:18px}.detailTitle{overflow-wrap:anywhere;font-family:var(--mono);font-size:22px;letter-spacing:-.6px}.detailmeta{display:flex;gap:15px;flex-wrap:wrap;align-items:center;margin:14px 0 24px;font-size:13px;color:var(--muted)}.twocol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px}.pad{padding:24px}.file{display:flex;justify-content:space-between;gap:15px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:15px 24px}.file span:first-child{overflow-wrap:anywhere;min-width:0;font-family:var(--mono);font-size:12px}.file[aria-pressed=true]{background:var(--mint)}.versions{margin-top:20px}pre{font:12px/1.7 var(--mono);margin:0;padding:18px;overflow:auto;max-height:450px;background:#f7faf7;tab-size:2;white-space:pre-wrap;overflow-wrap:anywhere}.codebox{font:12px/1.7 var(--mono);background:#eef3ee;border:1px solid var(--line);border-radius:8px;padding:13px 15px;overflow-wrap:anywhere;display:block;margin:12px 0}.steps{counter-reset:step;display:grid;gap:18px;margin-top:24px}.step{background:white;border:1px solid var(--line);border-radius:12px;padding:23px}.step h2:before{counter-increment:step;content:counter(step);display:inline-grid;place-items:center;width:27px;height:27px;background:var(--mint);color:var(--green);border-radius:50%;font-size:13px;margin-right:12px}details{margin-top:15px}summary{cursor:pointer;color:var(--green);font-size:13px}footer{margin-top:35px;font-size:11px;color:var(--muted);display:flex;justify-content:space-between;gap:10px}.loader{padding:40px;text-align:center;color:var(--muted)}.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(min-width:1500px){.shell{border-left:1px solid var(--line);border-right:1px solid var(--line)}}@media(max-width:1000px){.shell{grid-template-columns:180px minmax(0,1fr)}aside{padding:27px 18px}main{padding:28px 24px}th,td{padding:14px 16px}th:first-child{width:62%}th:nth-child(2){width:23%}th.changescol{width:15%}.durationcol{display:none}.twocol{grid-template-columns:1fr}}@media(max-width:650px){.shell{display:block}aside{padding:16px 19px;border-right:0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:12px}.brand{font-size:21px}.mark{width:27px;height:29px}.projectgroup,.local{display:none}.nav{display:flex;align-items:center;gap:0}.nav button{padding:7px 9px;font-size:12px}main{padding:22px 17px}.top{margin-bottom:20px}.hero{align-items:start;flex-direction:column;gap:5px}.hero p{margin-bottom:12px}.stats{gap:8px;margin:23px 0}.stat{padding:12px}.stat strong{font-size:25px}.stat span{font-size:10px}.panelhead{padding:18px 15px}.filters{padding:13px;gap:7px}.filters select{max-width:130px;font-size:12px}th,td{padding:13px 12px}.changescol{display:none}th:first-child{width:62%}th:nth-child(2){width:38%}.command{font-size:11px}.badge{font-size:10px}h1{font-size:32px}.pad{padding:18px}.detailTitle{font-size:19px}.top .eyebrow{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.panelhead h2{font-size:17px}.connection{font-size:10px}}
+</style></head><body><a class="sr" href="#main">Skip to content</a><div class="shell"><aside><div class="brand"><span class="mark">a</span>annalist</div><div class="projectgroup"><div class="eyebrow">Workspace</div><div class="project" id="project">This project</div></div><nav class="nav" aria-label="Main"><button id="nav-history" aria-current="page">Run history</button><button id="nav-guide">Getting started</button></nav><div class="local"><span class="dot"></span>Local by design<br>No accounts. No telemetry.<br>Your work stays with you.</div></aside><main id="main"><div class="top"><div class="eyebrow" id="workspace">Your coding workspace</div><div class="connection" id="connection"><span class="dot"></span>Connecting…</div></div><div id="error" class="notice error" role="alert" hidden></div>
+<section id="history"><div class="hero"><div><div class="eyebrow">Work, recorded.</div><h1>A clear history.<br>A way back.</h1><p class="muted">Review what changed. Understand each run. Recover with confidence.</p></div><button class="primary" id="record-guide">Record a run ↗</button></div><div class="stats"><div class="stat"><span>Recorded runs</span><strong id="total">—</strong></div><div class="stat"><span>Successful runs</span><strong id="successful">—</strong></div><div class="stat"><span>File change events</span><strong id="changes">—</strong></div></div><div class="panel"><div class="panelhead"><h2>Run history</h2><button id="refresh">↻ Refresh</button></div><div class="filters"><label class="sr" for="search">Search runs by command or ID</label><input id="search" type="search" placeholder="Search command or run ID…"><label class="sr" for="status">Filter by outcome</label><select id="status"><option value="all">All outcomes</option><option value="success">Successful</option><option value="failed">Failed</option><option value="running">Running</option><option value="interrupted">Interrupted</option><option value="signaled">Signaled</option></select></div><div id="loading" class="loader" role="status">Loading your history…</div><div id="empty" class="empty" hidden><div class="eyebrow">A fresh page</div><h2>No recorded runs yet</h2><p class="muted">Wrap your next coding command with Annalist.<br>Your first run will appear here.</p><button id="empty-guide" class="primary">Set up your first run</button></div><div id="noresults" class="empty" hidden><h2>No matching runs</h2><p class="muted">Try another command, run ID, or outcome.</p><button id="clear">Clear filters</button></div><table id="runs" hidden><thead><tr><th>Run / command</th><th>Outcome</th><th class="changescol">Changes</th><th class="durationcol">Duration</th></tr></thead><tbody id="rows"></tbody></table></div><p class="footnote" id="history-note">Newest runs first. File change counts are observed events, not unique files.</p><p class="footnote">Annalist samples project files every 2 seconds and after the command exits. Very brief changes may be missed. A successful command does not prove complete recording.</p></section>
+<section id="detail" hidden><button class="back" id="back">← Run history</button><div class="eyebrow" id="run-id"></div><h1 class="detailTitle" id="run-command"></h1><div class="detailmeta" id="run-meta"></div><div class="twocol"><div class="panel"><div class="panelhead"><h2>Changed files</h2><span class="muted" id="file-count"></span></div><div id="files"></div></div><div class="panel pad"><h2>A way back</h2><p class="muted">Preview recovery in your project terminal before restoring. The dashboard never changes your files.</p><code class="codebox" id="preview-command"></code><p class="footnote">Stop agents and editors first. Recovery refuses later edits unless forced, checks required content, and keeps pre-recovery copies. It is not a replacement for a backup.</p><details><summary>Recovery and export commands</summary><p class="footnote">Restore the touched files to their state before this run:</p><code class="codebox" id="rewind-command"></code><p class="footnote">Create a portable bundle outside the recorded project. Review it for sensitive content before sharing:</p><code class="codebox" id="export-command"></code></details></div></div><div id="versions" class="versions panel" hidden><div class="panelhead"><h2 id="version-title">File history</h2><button id="close-file">Close</button></div><div id="version-content"></div></div><details class="panel pad"><summary>Recorded activity</summary><p class="footnote">Detection order, not a complete process trace. Times use your browser’s local timezone.</p><div id="timeline"></div></details></section>
+<section id="guide" hidden><div class="eyebrow">Getting started</div><h1>Your next run,<br>with a record.</h1><p class="muted">Use the tools you already trust. Annalist records observed file changes around them.</p><div class="steps"><div class="step"><h2>Choose what to record</h2><p>Run <code>annalist init</code> in your project. Review exclusions before the first recording.</p><div class="notice">File contents and command arguments can contain secrets. There is no automatic redaction or encryption. Baseline contents of eligible project files are stored—even when a run does not modify them.</div><p class="footnote">Common secret filenames are excluded by default, but arbitrary secrets are not detected. Add project-relative patterns in <code>.annalist/config.toml</code>. Git ignore rules are not automatically applied.</p><code class="codebox">[ignore]<br>patterns = ["private/**", "*.log", "credentials.json"]</code></div><div class="step"><h2>Wrap your coding command</h2><code class="codebox">annalist run -- codex</code><p class="muted">Or use any command: <code>annalist run -- npm test</code>. Your terminal input and output stay attached to the command; they are not captured as a transcript.</p></div><div class="step"><h2>Review, then recover</h2><p>Refresh run history to inspect changes and before/after file versions. Preview recovery before applying it.</p><code class="codebox">annalist sessions<br>annalist inspect &lt;id&gt;<br>annalist rewind &lt;id&gt; --dry-run</code><button id="guide-history">Open run history →</button></div><div class="step"><h2>Know the boundaries</h2><p class="muted">Two-second polling can miss short-lived changes. Files over 10 MiB have no stored contents. Symlink contents, permissions history, empty directories, process trees, and changes outside the project are not recoverable. The wrapped command can still access the network: Annalist is a recorder, not a sandbox.</p><p class="footnote">History metadata lives in your user data directory; file snapshots and pre-recovery copies live inside the project’s <code>.annalist</code> directory. Protect and back up both. Never commit <code>.annalist</code>.</p></div></div></section><footer><span>Annalist · Local coding history</span><span id="version">Release candidate</span></footer></main></div>
 <script>
-const $ = (s) => document.querySelector(s);
-const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-function fmtTime(ms) { return new Date(ms).toLocaleString(); }
-function dur(ms) {
-  const s = Math.max(0, Math.round(ms / 1000));
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
-  if (h) return h + 'h' + String(m).padStart(2, '0') + 'm';
-  if (m) return m + 'm ' + String(s % 60).padStart(2, '0') + 's';
-  return s + 's';
-}
-async function load() {
-  const res = await fetch('/api/sessions');
-  const sessions = await res.json();
-  const list = $('#list');
-  if (!sessions.length) { list.innerHTML = '<p class="meta">No sessions yet.</p>'; return; }
-  list.innerHTML = sessions.map((s) =>
-    '<div class="session" data-id="' + s.id + '">' +
-    '<div class="cmd">' + esc(s.command) + '</div>' +
-    '<div class="meta">#' + String(s.id).padStart(3, '0') + ' · ' + fmtTime(s.started_at) +
-    ' · ' + dur((s.ended_at || Date.now()) - s.started_at) +
-    ' · ' + s.changes + ' changes · ' + s.events + ' events ' +
-    '<span class="pill ' + (s.status === 'success' ? 'ok' : 'bad') + '">' + esc(s.status) + '</span></div>' +
-    '</div>').join('');
-  list.querySelectorAll('.session').forEach((el) => {
-    el.addEventListener('click', () => {
-      list.querySelectorAll('.session').forEach((x) => x.classList.remove('active'));
-      el.classList.add('active');
-      showDetail(Number(el.dataset.id));
-    });
-  });
-}
-const LABELS = { session_started: 'SESSION STARTED', session_ended: 'SESSION ENDED', process_started: 'PROCESS STARTED', process_exited: 'PROCESS EXITED', file_created: 'CREATE', file_modified: 'MODIFY', file_deleted: 'DELETE', file_renamed: 'RENAME', git_state: 'GIT', error: 'ERROR' };
-async function showDetail(id) {
-  const [meta, evs] = await Promise.all([
-    fetch('/api/sessions/' + id).then((r) => r.json()),
-    fetch('/api/sessions/' + id + '/events').then((r) => r.json()),
-  ]);
-  const clock = (ms) => new Date(ms).toLocaleTimeString();
-  const rows = evs.map((e) => {
-    let what = '<span>' + esc(LABELS[e.type] || e.type) + '</span>';
-    if (e.type === 'git_state') what += ' ' + esc(e.path) + ' (' + e.size + ' dirty)';
-    else if (e.prev_path) what += ' <span class="filelink" data-s="' + id + '" data-p="' + esc(e.prev_path) + '">' + esc(e.prev_path) + '</span> → <span class="filelink" data-s="' + id + '" data-p="' + esc(e.path) + '">' + esc(e.path) + '</span>';
-    else if (e.path) what += ' <span class="filelink" data-s="' + id + '" data-p="' + esc(e.path) + '">' + esc(e.path) + '</span>';
-    return '<tr><td class="t">' + clock(e.ts) + '</td><td class="ev">' + what + '</td></tr>';
-  }).join('');
-  $('#detail').innerHTML =
-    '<h2>' + esc(meta.command) + ' <span class="pill ' + (meta.status === 'success' ? 'ok' : 'bad') + '">' + esc(meta.status) + '</span></h2>' +
-    '<p class="meta">Session #' + String(meta.id).padStart(3, '0') + ' · ' + fmtTime(meta.started_at) +
-    ' · ' + dur((meta.ended_at || Date.now()) - meta.started_at) +
-    ' · exit ' + (meta.exit_code === null || meta.exit_code === undefined ? '—' : meta.exit_code) +
-    ' · ' + meta.changes + ' changes · ' + meta.events + ' events</p>' +
-    '<h3>Timeline</h3><table class="timeline">' + rows + '</table>' +
-    '<div id="fileview"></div>';
-  document.querySelectorAll('.filelink').forEach((el) => {
-    el.addEventListener('click', () => showFile(el.dataset.s, el.dataset.p));
-  });
-}
-async function showFile(sessionId, path) {
-  const hist = await fetch('/api/files/history?session=' + sessionId + '&path=' + encodeURIComponent(path)).then((r) => r.json());
-  let html = '<h3>' + esc(path) + '</h3>';
-  for (const h of hist) {
-    html += '<p class="meta">' + esc(h.type) + '</p>';
-    if (h.before === null && h.after === null) { html += '<p class="meta">[binary or unavailable]</p>'; continue; }
-    const b = (h.before || '').split('\n'), a = (h.after || '').split('\n');
-    html += '<pre class="diff">' + esc(diffText(b, a)) + '</pre>';
-  }
-  if (!hist.length) html += '<p class="meta">No recorded changes.</p>';
-  $('#fileview').innerHTML = html;
-}
-function diffText(b, a) {
-  // Tiny LCS diff in the browser for display only.
-  const n = b.length, m = a.length;
-  if (n * m > 400000) return '(file too large for inline diff)';
-  const dp = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
-  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
-    dp[i][j] = b[i] === a[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
-  let out = '', i = 0, j = 0;
-  while (i < n || j < m) {
-    if (i < n && j < m && b[i] === a[j]) { out += '  ' + b[i] + '\n'; i++; j++; }
-    else if (j < m && (i >= n || dp[i + 1][j] < dp[i][j + 1])) { out += '+ ' + a[j] + '\n'; j++; }
-    else { out += '- ' + b[i] + '\n'; i++; }
-  }
-  return out;
-}
-load();
-</script>
-</body>
-</html>
+'use strict';
+const $=id=>document.getElementById(id);let sessions=[],selected=null,detailGeneration=0,fileGeneration=0;
+const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n};
+const date=t=>new Date(t).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'});
+const duration=s=>s.ended_at===null?'In progress':Math.max(0,Math.round((s.ended_at-s.started_at)/1000))+'s';
+const label=s=>({success:'Successful',failed:'Failed',running:'Running',interrupted:'Interrupted',signaled:'Signaled'}[s]||s);
+const badge=s=>el('span',label(s),'badge '+(['success','failed','running','interrupted','signaled'].includes(s)?s:''));
+async function api(path){const r=await fetch(path,{cache:'no-store'});if(!r.ok)throw Error('Request failed ('+r.status+').');return r.json()}
+function error(e){$('error').textContent=e.message+' Make sure annalist ui is still running, then refresh.';$('error').hidden=false;$('connection').textContent='Connection needs attention'}
+function view(name){for(const id of ['history','detail','guide'])$(id).hidden=id!==name;for(const id of ['history','guide']){if(id===name)$('nav-'+id).setAttribute('aria-current','page');else $('nav-'+id).removeAttribute('aria-current')}if(name!=='detail'){detailGeneration++;fileGeneration++}window.scrollTo(0,0)}
+function render(){const q=$('search').value.trim().toLowerCase(),status=$('status').value;const found=sessions.filter(s=>(!q||s.command.toLowerCase().includes(q)||String(s.id).includes(q))&&(status==='all'||s.status===status));$('rows').replaceChildren();$('empty').hidden=sessions.length!==0;$('noresults').hidden=!sessions.length||!!found.length;$('runs').hidden=!found.length;for(const s of found){const tr=el('tr'),td=el('td'),b=el('button',s.command,'command runbutton');b.title=s.command;b.setAttribute('aria-label','Inspect run '+s.id+': '+s.command);b.onclick=()=>openRun(s.id);td.append(b,el('div','#'+String(s.id).padStart(3,'0')+' · '+date(s.started_at),'sub'));const outcome=el('td');outcome.append(badge(s.status));tr.append(td,outcome,el('td',String(s.changes),'changescol'),el('td',duration(s),'durationcol'));$('rows').append(tr)}}
+async function refresh(){ $('refresh').disabled=true;$('error').hidden=true;try{const [p,rows]=await Promise.all([api('/api/project'),api('/api/sessions')]);sessions=rows;$('project').textContent=p.name;$('workspace').textContent=p.name+' / Run history';$('version').textContent=p.version;$('total').textContent=rows.length;$('successful').textContent=rows.filter(s=>s.status==='success').length;$('changes').textContent=rows.reduce((n,s)=>n+s.changes,0).toLocaleString();$('connection').textContent='Local · Updated '+new Date().toLocaleTimeString();$('history-note').textContent=(rows.length===p.session_limit?'Showing newest '+p.session_limit+' runs. Use the CLI for older history. ':'Newest runs first. ')+'File change counts are observed events, not unique files.';render()}catch(e){error(e)}finally{$('loading').hidden=true;$('refresh').disabled=false}}
+async function openRun(id){const generation=++detailGeneration;selected=id;fileGeneration++;$('versions').hidden=true;$('error').hidden=true;try{const [s,events]=await Promise.all([api('/api/sessions/'+id),api('/api/sessions/'+id+'/events')]);if(generation!==detailGeneration)return;view('detail');$('run-id').textContent='Run #'+String(id).padStart(3,'0');$('run-command').textContent=s.command;$('run-meta').replaceChildren(badge(s.status),el('span',date(s.started_at)),el('span',duration(s)),el('span',s.exit_code===null?'Exit pending':'Exit '+s.exit_code));$('preview-command').textContent='annalist rewind '+id+' --dry-run';$('rewind-command').textContent='annalist rewind '+id;$('export-command').textContent='annalist export '+id+' --out ../annalist-run-'+id;const files=new Map;for(const e of events)if(e.type.startsWith('file_'))files.set(e.path,e);$('file-count').textContent=files.size+' paths';$('files').replaceChildren();if(!files.size)$('files').append(el('p','No file changes were observed in this run.','pad muted'));for(const [path,e] of files){const b=el('button',undefined,'file');b.append(el('span',path),el('span',e.type.replace('file_',''),'badge'));b.setAttribute('aria-pressed','false');b.onclick=()=>openFile(id,path,b);$('files').append(b)}$('timeline').replaceChildren();if(events.length>=10000)$('timeline').append(el('p','Showing the first 10,000 events. Use annalist inspect for the complete timeline.','notice'));for(const e of events){const line=el('div',undefined,'sub');line.append(el('span',new Date(e.ts).toLocaleTimeString()+' · '+e.type.replaceAll('_',' ')+' '+e.path));$('timeline').append(line)}}catch(e){error(e)}}
+async function openFile(id,path,button){const generation=++fileGeneration;$('versions').hidden=false;$('version-title').textContent=path;$('version-content').replaceChildren(el('p','Loading recorded versions…','pad muted'));for(const b of $('files').children)b.setAttribute('aria-pressed',String(b===button));try{const history=await api('/api/files/history?session='+id+'&path='+encodeURIComponent(path));if(generation!==fileGeneration||selected!==id)return;$('version-content').replaceChildren();if(history.length>=100)$('version-content').append(el('p','Showing up to the first 100 recorded versions. Use annalist inspect or export for the complete history.','notice'));if(history.some(h=>h.preview_limited))$('version-content').append(el('p','Some text previews are omitted because this view reached its 2 MiB preview budget. Full recorded contents remain available through the CLI or an export.','notice'));for(const h of history){const row=el('div',undefined,'pad');row.append(el('h3',h.type.replace('file_','')+' · '+new Date(h.ts).toLocaleTimeString()));const pair=el('div',undefined,'twocol');for(const key of ['before','after']){const box=el('div');box.append(el('div',key==='before'?'Before':'After','eyebrow'),el('pre',h[key]===null?'No text preview: absent, unavailable, binary/non-UTF-8, larger than 256 KiB, or beyond this view’s preview budget.':h[key]));pair.append(box)}row.append(pair);$('version-content').append(row)}if(!history.length)$('version-content').append(el('p','No recorded versions available.','pad muted'));$('versions').scrollIntoView({block:'start',behavior:'smooth'})}catch(e){if(generation===fileGeneration)$('version-content').replaceChildren(el('p','Could not load file history. Select the file to retry.','pad error'))}}
+for(const id of ['nav-guide','record-guide','empty-guide'])$(id).onclick=()=>view('guide');for(const id of ['nav-history','back','guide-history'])$(id).onclick=()=>view('history');$('refresh').onclick=refresh;$('search').oninput=render;$('status').onchange=render;$('clear').onclick=()=>{$('search').value='';$('status').value='all';render()};$('close-file').onclick=()=>{fileGeneration++;$('versions').hidden=true};refresh();
+</script></body></html>

@@ -1,11 +1,18 @@
 .{
     .name = .annalist,
-    .version = "0.1.0",
+    .version = "1.0.0-rc.1",
     .fingerprint = 0x51ca5f279f346cc1,
-    .minimum_zig_version = "0.15.0",
+    .minimum_zig_version = "0.15.2",
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "src",
+        "README.md",
+        "CHANGELOG.md",
+        "CONTRIBUTING.md",
+        "SECURITY.md",
+        "docs",
+        "scripts",
+        "tests",
     },
 }

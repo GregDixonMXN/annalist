@@ -32,7 +32,7 @@ pub fn listSessions(allocator: std.mem.Allocator, database: *db.Db, project_id: 
 
         const started_s = try session.formatStarted(allocator, started);
         defer allocator.free(started_s);
-        const dur = try session.formatDuration(allocator, ended - started);
+        const dur = try session.formatElapsed(allocator, started, ended);
         defer allocator.free(dur);
         const changes = events.countFileEvents(database, id) catch events.Counts{};
 
@@ -117,7 +117,7 @@ pub fn inspectSession(
 
     const started_s = try session.formatStarted(allocator, started);
     defer allocator.free(started_s);
-    const dur_s = if (ended) |e| try session.formatDuration(allocator, e - started) else try allocator.dupe(u8, "running");
+    const dur_s = if (ended) |e| try session.formatElapsed(allocator, started, e) else try allocator.dupe(u8, "running");
     defer allocator.free(dur_s);
     const id_s = try session.padId(allocator, id);
     defer allocator.free(id_s);

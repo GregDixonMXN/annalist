@@ -29,6 +29,11 @@ pub const Queue = struct {
     mutex: std.Thread.Mutex = .{},
     items: std.ArrayList(QueuedEvent) = .empty,
 
+    pub fn deinit(self: *Queue, allocator: std.mem.Allocator) void {
+        for (self.items.items) |*ev| ev.deinit(allocator);
+        self.items.deinit(allocator);
+    }
+
     pub fn push(self: *Queue, allocator: std.mem.Allocator, ev: QueuedEvent) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
@@ -112,6 +117,7 @@ const testing = std.testing;
 test "queue push/drain" {
     const allocator = testing.allocator;
     var q = Queue{};
+    defer q.deinit(allocator);
     try q.push(allocator, .{
         .ts = 1,
         .type = "file_created",

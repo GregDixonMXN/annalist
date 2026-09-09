@@ -7,8 +7,11 @@ and file states. Candidates: SQLite, append-only JSONL, embedded KV (RocksDB-sty
 
 ## Decision
 
-SQLite (system library, linked) with WAL mode, `synchronous=NORMAL`,
-foreign keys on, and explicit versioned migrations in `src/db.zig`.
+SQLite (system library, linked) with WAL mode, `synchronous=FULL`,
+foreign keys on, and transactional versioned migrations in `src/db.zig`.
+Observed events are persisted incrementally while recording. Per-project
+operation locks coordinate recording and maintenance; the shared index uses
+a bounded busy timeout for writer contention.
 
 ## Alternatives
 
@@ -17,7 +20,8 @@ foreign keys on, and explicit versioned migrations in `src/db.zig`.
 
 ## Consequences
 
-- All SQL lives in `db.zig` behind typed helpers; callers never write raw SQL.
-- A corrupted session row cannot corrupt other sessions (row-granular, WAL).
-- Requires libsqlite3 on the build machine. Acceptable: present by default on
-  all target platforms.
+- SQLite helpers and domain operations share explicit transaction boundaries.
+- Transactions prevent partially committed logical updates; WAL is not a
+  substitute for backups or protection against storage corruption.
+- Requires SQLite headers at build time and the shared library at runtime.
+  The validated release target is Linux x86-64.

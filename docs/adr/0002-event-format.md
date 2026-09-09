@@ -13,8 +13,9 @@ One `events` table, one row per observation:
   convention: `file_created`, `session_started`, …)
 - `path` / `prev_path` (rename support), `prev_hash` / `new_hash`
   (content-addressed snapshots, nullable), `size`
-- Unknown future types render generically; consumers never switch
-  exhaustively on type.
+- Generic views can display event names, but bundle imports validate supported
+  types and their metadata before accepting rows. New types need an explicit
+  validation and compatibility decision.
 
 ## Alternatives
 
@@ -25,5 +26,6 @@ One `events` table, one row per observation:
 
 ## Consequences
 
-- New observation types (network, tool calls, token usage) need no migration.
+- The table can represent new types without a schema migration, but this
+  release does not record network traffic, tool calls, or token usage.
 - `prev_hash`/`new_hash` never store contents — only the blob store does.

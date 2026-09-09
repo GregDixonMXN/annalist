@@ -101,9 +101,13 @@ pub fn runDoctor(
         {
             var it = referenced.iterator();
             while (it.next()) |kv| {
-                if (!blobExists(project_root, kv.key_ptr.*)) rep.missing_blobs += 1;
+                if (@import("store.zig").get(allocator, project_root, kv.key_ptr.*, 64 * 1024 * 1024)) |bytes| {
+                    allocator.free(bytes);
+                } else |_| {
+                    rep.missing_blobs += 1;
+                }
             }
-            try out.print("referenced blobs missing from store: {d}\n", .{rep.missing_blobs});
+            try out.print("referenced blobs missing or corrupt: {d}\n", .{rep.missing_blobs});
         }
 
         // Orphan blobs: present but unreferenced.

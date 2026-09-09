@@ -1,95 +1,111 @@
 # Annalist
 
-> Annalist is a local-first flight recorder for autonomous coding agents.
+**A clear history. A way back.**
 
-Annalist observes what the operating system sees, rather than trusting the AI agent's own description of what it did.
+Annalist is a local coding-work recorder. Wrap a coding agent or command, review observed file changes in a private loopback dashboard, and preview recovery before restoring touched files. No account, telemetry, cloud dependency, or network assets.
 
-## Status: v0.4 working
+**1.0.0-rc.1 · Linux release candidate.** This is not a sandbox, full filesystem backup, or complete execution trace.
 
-## Requirements
+See [installation](docs/INSTALL.md), [release notes](CHANGELOG.md), and [security](SECURITY.md). Linux x86-64 is the supported release target; other platforms are not yet validated.
 
-- Zig 0.15.x (`zig version`)
-- libsqlite3 (ships with virtually all Linux/macOS systems)
-- Linux x86_64 primary; platform code isolated in `src/platform/` (planned)
+## Get running
 
-## Quick start
+If you have the Linux release archive, follow the [binary installation instructions](docs/INSTALL.md). Building from source:
 
-```bash
-zig build
-./zig-out/bin/annalist init
-./zig-out/bin/annalist run -- sh -c "echo hello > hello.txt"
-./zig-out/bin/annalist sessions
-./zig-out/bin/annalist inspect 001
-./zig-out/bin/annalist inspect 001 --file hello.txt
-./zig-out/bin/annalist ui   # http://127.0.0.1:8901
+Requires Linux x86-64, Zig **0.15.2**, a C toolchain, and SQLite development headers/library. On Debian/Ubuntu, install `build-essential libsqlite3-dev`; obtain Zig from [ziglang.org](https://ziglang.org/download/).
+
+```sh
+zig build -Doptimize=ReleaseSafe
+install -Dm755 zig-out/bin/annalist "$HOME/.local/bin/annalist"
+cd /path/to/your/project
+annalist init
+# Add .annalist/ to your project's .gitignore and review exclusions first.
+annalist run -- codex
+annalist ui
 ```
 
-## Commands
+Open **http://127.0.0.1:8901**. Keep the terminal running; Ctrl+C stops the dashboard. Use `annalist run -- claude` or any other command instead of Codex. Interactive stdin/stdout/stderr are inherited, not saved as transcripts. The wrapped command's exit status is propagated; an incomplete recording also returns nonzero.
 
-- `annalist init` — initialize `.annalist/` (identity only; history lives in `~/.local/share/annalist/`)
-- `annalist run -- <command>` — record a session (inherits stdio, forwards signals to the whole process group, propagates exit code)
-- `annalist sessions` — table of sessions
-- `annalist inspect <id> [--json] [--file <path>]` — metadata, timeline, before/after/diff per file
-- `annalist diff <a> <b>` — per-session change sets (what each run created/modified/deleted/renamed)
-- `annalist rewind <session> [seq] [--force]` — undo a session (pre-session state) or restore state at event seq; refuses on post-session changes without --force; not recorded
-- `annalist export <session>|--all [--out <dir>]` — portable bundles (manifest.json + content blobs)
-- `annalist import <dir> [--force]` — restore sessions from a bundle (hash-verified, dedup-guarded)
-- `annalist branch [name]` — named workstreams; `sessions [--branch <name>]` filters
-- `annalist policy [--set-max-age <days>]` / `annalist prune [--dry-run] [--older-than <days>]` — retention
-- `annalist doctor [--fix] [--gc]` — integrity check, stale-session repair, orphan-blob collection
-- `annalist ui` — loopback-only dashboard + read-only JSON API
+The dashboard offers command/ID search, outcome filters, run details, changed-file versions, and recovery instructions. It is read-only. Refresh to see newly recorded runs. It shows the newest 1,000 runs and first 10,000 events per run; use the CLI for full history. Text previews are limited to 256 KiB per version.
 
-## Configuration (`.annalist/config.toml`)
+## Review and recover
 
-Migrating from blackbox: `mv .blackbox .annalist` in the project, and move
-`~/.local/share/blackbox/blackbox.db` to `~/.local/share/annalist/annalist.db`.
-History (including branch tags) carries over.
+```sh
+annalist sessions
+annalist inspect 1
+annalist inspect 1 --json
+annalist inspect 1 --file src/main.zig
+annalist diff 1 2
+annalist rewind 1 --dry-run
+annalist rewind 1
+```
+
+Stop agents and editors before recovery. A full rewind restores **only paths touched by that run** to their pre-run state. `rewind 1 5` restores those paths to their state at event sequence 5. It is not a whole-project checkout. Later edits cause refusal; `--force` overrides that guard, not missing-content or unsafe-path checks. Symlink traversal is refused. All required content is validated before file mutation, and current touched files are copied into `.annalist/recovery/<timestamp>-<id>/`, with an adjacent JSON manifest recording absent paths. Individual writes are atomic; a multi-file recovery is **not** an atomic transaction. If I/O fails mid-recovery, use the retained copies and manifest to restore current work. Keep an independent backup.
+
+## Privacy and recording boundaries
+
+**File contents and command arguments can contain secrets. No automatic redaction or encryption is provided.** Eligible baseline file contents are stored even if the run never changes them. Review exclusions before the first run. Do not pass credentials as arguments. Protect exports as source-code archives.
+
+- Annalist samples files every two seconds and once after the command exits. Short-lived edits can be missed; rename inference is based on matching content.
+- Files over 10 MiB have metadata only. Symlink contents, permission history, empty directories, subprocess traces, terminal transcripts, and changes outside the project cannot be recovered.
+- Annalist itself does not send telemetry. The command it wraps can access the network and filesystem normally.
+- Default exclusions include `.git`, `.annalist`, dependency/build directories, `.env`/`.env.*`, `*.pem`, `*.key`, SSH private-key filenames, `.ssh`, and `.aws`. This is filename filtering, not secret detection. **Git ignore rules are not loaded.**
+- New files created by Annalist default to owner-only access. Existing histories keep their existing permissions: inspect and restrict them yourself if needed.
+
+Additional project-relative exclusions in `.annalist/config.toml`:
 
 ```toml
 [ignore]
-patterns = ["*.log", "tmp/**"]
+patterns = ["private/**", "*.log", "credentials.json"]
 
 [ui]
 port = 8901
 ```
 
-Defaults ignore `.git`, `node_modules`, `zig-out`, `target`, `build`, `dist`, caches.
+The supported glob subset is `*`/`?` within a segment, exact relative paths, and trailing `/**` for a subtree. Default filename exclusions apply at any depth; custom patterns are relative to the project root. Avoid complex Git-style glob rules. Always test exclusions on synthetic data if unsure.
 
-## Architecture
+## Storage and backups
 
+| Location | Contains |
+| --- | --- |
+| Project `.annalist/config.toml` | Project identity and settings |
+| Project `.annalist/objects/` | Content-addressed file versions |
+| Project `.annalist/recovery/` | Pre-recovery copies and manifests |
+| `$XDG_DATA_HOME/annalist/annalist.db` | Shared session/event index |
+| `~/.local/share/annalist/annalist.db` | Index fallback when XDG_DATA_HOME is unset |
+
+Do not commit `.annalist/`. Back up **both** the project `.annalist/` and user-level database. Stop Annalist commands before a filesystem backup and include any `-wal`/`-shm` SQLite sidecars. A SQLite online backup is another supported way to copy the index. Copying only the index loses file content; copying only project objects loses the session index.
+
+Portable completed-run bundles:
+
+```sh
+annalist export 1 --out ../run-1
+annalist export --all --out ../history-bundles
+# In another initialized project:
+annalist import ../run-1
 ```
-src/
-  main.zig      entry + dispatch
-  cli.zig       parsing, help
-  log.zig       ANNALIST_LOG=debug|info|warn|error (stderr)
-  config.zig    init, identity, ignore/UI config
-  db.zig        SQLite layer, migrations, prepared statements
-  session.zig   supervisor: spawn, signals, timing, exit codes
-  record.zig    recorder: baseline, polling, diff, rename pairing
-  scan.zig      walker, stat+hash
-  store.zig     content-addressed blobs
-  events.zig    event queue + queries
-  diff.zig      LCS line diffs
-  git.zig       best-effort branch/HEAD/dirty
-  views.zig     sessions/inspect rendering
-  server.zig    loopback HTTP + JSON API
-  ui/index.html embedded dashboard (no build step)
+
+The output destination must not exist. Each individual bundle is staged then published locally only after all required blobs have been verified/copied. `--all` creates one subdirectory per run; earlier completed bundles remain if a later run fails. Import one bundle directory at a time. Imports verify hashes and commit rows transactionally, assign fresh IDs, and use the destination's current workstream. Failed imports may leave unreferenced verified objects; `doctor --gc` can collect those. `import --force` adds another copy, not an overwrite. Back up first when upgrading; the current SQLite and blob layout is preserved.
+
+## Maintenance
+
+```sh
+annalist branch experiment       # workstream label, not a Git branch
+annalist sessions --branch main
+annalist doctor                 # index integrity, stale runs, missing/corrupt objects
+annalist doctor --fix           # mark interrupted runs left by a killed supervisor
+annalist doctor --gc            # delete unreferenced objects
+annalist policy --set-max-age 30
+annalist prune --older-than 30 --dry-run
+annalist prune --older-than 30
 ```
 
-Decisions: `docs/adr/`.
+Retention is manual; policy does not schedule deletion. Prune removes old completed runs and unreferenced objects. Pre-recovery copies are not automatically pruned. Recording and CLI maintenance are mutually exclusive per project; a busy error means another command still holds the operation lock. After a crash, run `doctor` before recovery. Never run an older binary concurrently against the same project: older versions do not honor the new operation lock.
 
-## Privacy
+## Verify and package
 
-Entirely local-first. No telemetry, no accounts, no sync. The UI binds
-127.0.0.1 only. Secrets are never recorded (only file metadata + contents
-of project files the agent itself touches). Nothing leaves the machine.
+```sh
+sh scripts/check.sh
+```
 
-## Current limitations (honest)
-
-- Filesystem observation is scan-based (2s poll + final pass), not inotify —
-  sub-second create/delete cycles can coalesce.
-- Child-process *trees* of the agent are killed as a group on interrupt but
-  not individually recorded yet (no ptrace/eBPF in v0.1).
-- Timestamps render in UTC.
-- No `rewind` yet — but every observed version is already stored and
-  retrievable, so rewind is a checkout operation away.
+This checks formatting, unit tests in Debug and ReleaseSafe, CLI/HTTP/terminal regressions, and the same flows from the extracted release archive. Tests create isolated temporary HOME/XDG/project fixtures and never open your recorder index. Packaging produces a local archive and SHA-256 checksum under `dist/`; it does not publish. See [contributing](CONTRIBUTING.md), [release gates](docs/RELEASE.md), and [verification evidence](docs/VERIFICATION.md).
