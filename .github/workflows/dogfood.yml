@@ -9,6 +9,7 @@ on:
 jobs:
   agent:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     env:
       ANNALIST_TASK: ${{ inputs.task }}
     steps:
@@ -28,7 +29,7 @@ jobs:
         run: curl -fsSL https://dev.meta.ai/install.sh | bash
       - uses: ./.github/actions/annalist-run
         with:
-          command: muse exec "$ANNALIST_TASK"
+          command: muse exec --trust-workspace --approval-mode never "$ANNALIST_TASK"
           policy_file: examples/agent-pr/annalist.policy.toml
         env:
           META_API_KEY: ${{ secrets.META_API_KEY }}
