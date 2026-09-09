@@ -1,10 +1,21 @@
 # Annalist
 
+**A required check for AI-written PRs.** Record what your coding agent changed, gate it against policy, fail the PR when it writes secrets.
+
+```yaml
+- uses: GregDixonMXN/annalist/.github/actions/annalist-run@v1.0.0-rc.3
+  with:
+    command: mkdir -p src && printf 'hello\n' > src/hello.txt
+    policy_file: examples/agent-pr/annalist.policy.toml
+```
+
+`command:` is any shell argv. `policy_file:` sets allow_paths, deny_globs, max_files_changed. Exit 0 green, 2 deny, 1 broken. Mark the check required under branch protection and a `.env`-writing PR cannot merge. Linux x86_64 runners only; the recorder samples every 2s; file contents are stored unredacted — review exclusions first.
+
 **A clear history. A way back.**
 
 Annalist is a local coding-work recorder. Wrap a coding agent or command, review observed file changes in a private loopback dashboard, and preview recovery before restoring touched files. No account, telemetry, cloud dependency, or network assets.
 
-**1.0.0-rc.1 · Linux release candidate.** This is not a sandbox, full filesystem backup, or complete execution trace.
+**1.0.0-rc.3 · Linux release candidate.** This is not a sandbox, full filesystem backup, or complete execution trace.
 
 See [installation](docs/INSTALL.md), [release notes](CHANGELOG.md), and [security](SECURITY.md). Linux x86-64 is the supported release target; other platforms are not yet validated.
 

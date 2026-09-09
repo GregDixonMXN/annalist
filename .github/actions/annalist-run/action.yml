@@ -49,13 +49,19 @@ runs:
         tar -xzf "$RUNNER_TEMP/$A" -C "$RUNNER_TEMP"
         echo "$RUNNER_TEMP/annalist-${V}-linux-x86_64" >> "$GITHUB_PATH"
     - name: Record command
+      id: record
       shell: bash
       env:
         ANNALIST_COMMAND: ${{ inputs.command }}
       run: |
         set -eu
         [ -d .annalist ] || annalist init
-        annalist run -- sh -c "$ANNALIST_COMMAND"
+        annalist run -- sh -c "$ANNALIST_COMMAND" 2>&1 | tee ./annalist-run.log
+        # The session this step just recorded — never "latest", so parallel
+        # steps in one job cannot gate each other's recordings.
+        SESSION="$(grep -oE 'Session +[0-9]+' ./annalist-run.log | awk '{print $2}' | tail -n 1)"
+        [ -n "$SESSION" ] || { echo "could not determine recorded session id from run output" >&2; exit 1; }
+        echo "session=$SESSION" >> "$GITHUB_OUTPUT"
     - name: Export and gate
       id: gate
       shell: bash
@@ -64,7 +70,7 @@ runs:
         ANNALIST_FAIL_ON_SECRET: ${{ inputs.fail_on_secret }}
       run: |
         set -eu
-        SESSION="$(annalist sessions | awk '$1 ~ /^[0-9]+$/ {print $1}' | tail -n 1)"
+        SESSION="${{ steps.record.outputs.session }}"
         [ -n "$SESSION" ] || { echo "no recorded session found" >&2; exit 1; }
         echo "session=$SESSION" >> "$GITHUB_OUTPUT"
         annalist export "$SESSION" --out ./annalist-bundle
