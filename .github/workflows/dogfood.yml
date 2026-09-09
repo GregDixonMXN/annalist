@@ -25,7 +25,7 @@ jobs:
           }
       - name: Install Muse Code
         shell: bash
-        run: curl -fsSL https://dev.meta.ai/install.sh | sh
+        run: curl -fsSL https://dev.meta.ai/install.sh | bash
       - uses: ./.github/actions/annalist-run
         with:
           command: muse exec "$ANNALIST_TASK"
