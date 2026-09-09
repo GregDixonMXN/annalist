@@ -16,19 +16,19 @@ jobs:
       - name: Require agent credential
         shell: bash
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          META_API_KEY: ${{ secrets.META_API_KEY }}
         run: |
           set -eu
-          [ -n "$ANTHROPIC_API_KEY" ] || {
-            echo "Add an ANTHROPIC_API_KEY repo secret (Settings -> Secrets and variables -> Actions), then re-dispatch." >&2
+          [ -n "$META_API_KEY" ] || {
+            echo "Create a key at https://dev.meta.ai dashboard -> API keys, add it as a META_API_KEY repo secret (Settings -> Secrets and variables -> Actions), then re-dispatch." >&2
             exit 1
           }
-      - name: Install Claude Code
+      - name: Install Muse Code
         shell: bash
-        run: npm install -g @anthropic-ai/claude-code
+        run: curl -fsSL https://dev.meta.ai/install.sh | sh
       - uses: ./.github/actions/annalist-run
         with:
-          command: claude -p "$ANNALIST_TASK" --output-format text --max-turns 25 --dangerously-skip-permissions
+          command: muse exec "$ANNALIST_TASK"
           policy_file: examples/agent-pr/annalist.policy.toml
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          META_API_KEY: ${{ secrets.META_API_KEY }}
