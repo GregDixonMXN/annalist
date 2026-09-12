@@ -13,6 +13,7 @@
 
 **Proof.** Same policy, two jobs on one PR: [green — `src/hello.txt` passes](https://github.com/GregDixonMXN/annalist/actions/runs/34377464392/job/102553767965), [red — `.env` denied, gate exit 2](https://github.com/GregDixonMXN/annalist/actions/runs/34377464392/job/102553768346). The red is the product working, not a broken build.
 **A clear history. A way back.**
+Works alone. With Paldron (policy gate + sandbox) and Seal (one policy for both): https://github.com/GregDixonMXN/paldron, https://github.com/GregDixonMXN/seal
 
 Annalist is a local coding-work recorder. Wrap a coding agent or command, review observed file changes in a private loopback dashboard, and preview recovery before restoring touched files. No account, telemetry, cloud dependency, or network assets.
 
