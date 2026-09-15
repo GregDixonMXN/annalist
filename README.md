@@ -25,7 +25,7 @@ See [installation](docs/INSTALL.md), [release notes](CHANGELOG.md), and [securit
 
 If you have the Linux release archive, follow the [binary installation instructions](docs/INSTALL.md). Building from source:
 
-Requires Linux x86-64, Zig **0.15.2**, a C toolchain, and SQLite development headers/library. On Debian/Ubuntu, install `build-essential libsqlite3-dev`; obtain Zig from [ziglang.org](https://ziglang.org/download/).
+Requires Linux x86-64, Zig **0.15.2**, a C toolchain, and SQLite development headers/library. On Debian/Ubuntu, install `build-essential libsqlite3-dev`; obtain Zig from [ziglang.org](https://ziglang.org/download/) (direct tarball pattern: `https://ziglang.org/download/0.15.2/zig-x86_64-linux-0.15.2.tar.xz`).
 
 ```sh
 zig build -Doptimize=ReleaseSafe
