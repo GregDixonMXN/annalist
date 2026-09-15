@@ -3,7 +3,7 @@
 **A required check for AI-written PRs.** Record what your coding agent changed, gate it against policy, fail the PR when it writes secrets.
 
 ```yaml
-- uses: GregDixonMXN/annalist/.github/actions/annalist-run@v1.0.0-rc.3
+- uses: GregDixonMXN/annalist/.github/actions/annalist-run@v1.0.0
   with:
     command: mkdir -p src && printf 'hello\n' > src/hello.txt
     policy_file: examples/agent-pr/annalist.policy.toml
@@ -17,7 +17,7 @@ Works alone. With Paldron (policy gate + sandbox) and Seal (one policy for both)
 
 Annalist is a local coding-work recorder. Wrap a coding agent or command, review observed file changes in a private loopback dashboard, and preview recovery before restoring touched files. No account, telemetry, cloud dependency, or network assets.
 
-**1.0.0-rc.3 · Linux release candidate.** This is not a sandbox, full filesystem backup, or complete execution trace.
+**1.0.0 · Linux.** This is not a sandbox, full filesystem backup, or complete execution trace.
 
 See [installation](docs/INSTALL.md), [release notes](CHANGELOG.md), and [security](SECURITY.md). Linux x86-64 is the supported release target; other platforms are not yet validated.
 

@@ -1,4 +1,4 @@
-# Release gates · 1.0.0-rc.1
+# Release gates · 1.0.0
 
 ## Intended v1 scope
 
@@ -16,9 +16,10 @@ All local checks above passed for this candidate; see [verification evidence](VE
 
 ## External publication gates
 
-1. The owner must select/authorize a license and confirm distribution rights. There is no existing license file; do not imply open-source permission or choose one on their behalf.
-2. Hosted CI has not been executed by local work. Run the committed workflow in the destination repository before release.
-3. Signing, distribution channel, support policy, and compatibility claims beyond the tested Ubuntu 24.04 host/container remain publication decisions. The local archive is an unsigned release candidate, not a published release.
+1. License: MIT — see LICENSE. Distribution rights confirmed by the owner.
+2. Hosted CI runs on every push to the destination repository; release only
+   from a commit with a green `Verify Linux release candidate` run.
+3. Signing, distribution channel, support policy, and compatibility claims beyond the tested Ubuntu 24.04 host/container remain publication decisions. The archive is unsigned; checksums verify integrity, not authorship.
 
 ## Known technical limits
 

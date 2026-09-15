@@ -7,9 +7,9 @@ The validated environment is Ubuntu 24.04 x86-64, including an unprivileged mini
 From the directory containing the archive and its checksum:
 
 ```sh
-sha256sum -c annalist-1.0.0-rc.1-linux-x86_64.tar.gz.sha256
-tar -xzf annalist-1.0.0-rc.1-linux-x86_64.tar.gz
-cd annalist-1.0.0-rc.1-linux-x86_64
+sha256sum -c annalist-1.0.0-linux-x86_64.tar.gz.sha256
+tar -xzf annalist-1.0.0-linux-x86_64.tar.gz
+cd annalist-1.0.0-linux-x86_64
 install -Dm755 annalist "$HOME/.local/bin/annalist"
 "$HOME/.local/bin/annalist" version
 ```

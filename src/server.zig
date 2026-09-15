@@ -124,7 +124,7 @@ pub const Server = struct {
         if (std.mem.eql(u8, path, "/api/project")) {
             const name = try db.jsonEscape(self.allocator, std.fs.path.basename(self.project_root));
             defer self.allocator.free(name);
-            const body = try std.fmt.allocPrint(self.allocator, "{{\"name\":{s},\"version\":\"1.0.0-rc.1\",\"session_limit\":1000,\"event_limit\":10000}}", .{name});
+            const body = try std.fmt.allocPrint(self.allocator, "{{\"name\":{s},\"version\":\"1.0.0\",\"session_limit\":1000,\"event_limit\":10000}}", .{name});
             defer self.allocator.free(body);
             return self.writeResponse(stream, 200, "application/json", body);
         }

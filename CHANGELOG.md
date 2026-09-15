@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.0
+
+First stable release. Everything in 1.0.0-rc.1, plus:
+
+- Policy gate command (`annalist gate`) with allow/deny exit codes, shipped
+  as a reusable GitHub Action (`annalist-run`) for gating AI-written PRs.
+- Green/red PR proof: the same policy passes a clean change and denies a
+  secret-writing change, demonstrated on a live pull request.
+- Baseline-CPU release builds that run anywhere on x86-64 Linux.
+- Real agent runs recorded under the gate via the dogfood workflow.
+- Suite pairing: works alone, or composed with Paldron (policy gate +
+  sandbox) and Seal (one policy for both).
+
+Support intent: the SQLite/blob storage layout and bundle format are
+stable within 1.x; a breaking change, if ever needed, ships as 2.0 with a
+migration path. Validated target is Ubuntu 24.04 x86-64; see
+docs/RELEASE.md for the full limits list.
+
 ## 1.0.0-rc.1
 
 ### Product
