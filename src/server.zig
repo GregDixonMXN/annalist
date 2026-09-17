@@ -212,7 +212,7 @@ pub const Server = struct {
         errdefer out.deinit(self.allocator);
         try out.appendSlice(self.allocator, "[");
         var stmt = try self.database.prepare(
-            "SELECT id, command, started_at, ended_at, exit_code, status FROM sessions WHERE project_id = ?1 ORDER BY id DESC LIMIT 1000;",
+            "SELECT id, command, started_at, ended_at, exit_code, status, risk_score, risk_confidence FROM sessions WHERE project_id = ?1 ORDER BY id DESC LIMIT 1000;",
         );
         defer stmt.finalize();
         try stmt.bindText(1, self.project_id);
@@ -228,7 +228,7 @@ pub const Server = struct {
             const status_esc = try db.jsonEscape(self.allocator, stmt.columnText(5));
             defer self.allocator.free(status_esc);
             try out.writer(self.allocator).print(
-                \\{{"id":{d},"command":{s},"started_at":{d},"ended_at":{any},"exit_code":{any},"status":{s},"changes":{d},"events":{d}}}
+                \\{{"id":{d},"command":{s},"started_at":{d},"ended_at":{any},"exit_code":{any},"status":{s},"changes":{d},"events":{d},"risk_score":{any},"risk_confidence":{any}}}
             , .{
                 id,
                 cmd_esc,
@@ -238,6 +238,8 @@ pub const Server = struct {
                 status_esc,
                 counts.changed(),
                 total,
+                if (stmt.columnIsNull(6)) null else stmt.columnInt64(6),
+                if (stmt.columnIsNull(7)) null else stmt.columnInt64(7),
             });
         }
         try out.append(self.allocator, ']');
@@ -246,7 +248,7 @@ pub const Server = struct {
 
     fn sessionJson(self: *Server, id: i64) !?[]u8 {
         var stmt = try self.database.prepare(
-            "SELECT command, cwd, started_at, ended_at, exit_code, status FROM sessions WHERE id = ?1 AND project_id = ?2;",
+            "SELECT command, cwd, started_at, ended_at, exit_code, status, risk_score, risk_confidence FROM sessions WHERE id = ?1 AND project_id = ?2;",
         );
         defer stmt.finalize();
         try stmt.bindInt64(1, id);
@@ -262,7 +264,7 @@ pub const Server = struct {
         defer self.allocator.free(status_esc);
         const body: []u8 = try std.fmt.allocPrint(
             self.allocator,
-            \\{{"id":{d},"command":{s},"cwd":{s},"started_at":{d},"ended_at":{any},"exit_code":{any},"status":{s},"changes":{d},"events":{d}}}
+            \\{{"id":{d},"command":{s},"cwd":{s},"started_at":{d},"ended_at":{any},"exit_code":{any},"status":{s},"changes":{d},"events":{d},"risk_score":{any},"risk_confidence":{any}}}
         ,
             .{
                 id,
@@ -274,6 +276,8 @@ pub const Server = struct {
                 status_esc,
                 counts.changed(),
                 total,
+                if (stmt.columnIsNull(6)) null else stmt.columnInt64(6),
+                if (stmt.columnIsNull(7)) null else stmt.columnInt64(7),
             },
         );
         return body;

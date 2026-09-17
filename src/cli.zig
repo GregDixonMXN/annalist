@@ -20,6 +20,7 @@ pub const Command = union(enum) {
     run: RunOpts,
     sessions: SessionsOpts,
     inspect: InspectOpts,
+    score: ScoreOpts,
     ui,
     doctor: DoctorOpts,
     diff: DiffOpts,
@@ -64,6 +65,10 @@ pub const InspectOpts = struct {
     id: []const u8,
     json: bool,
     file: ?[]const u8 = null,
+};
+
+pub const ScoreOpts = struct {
+    id: []const u8,
 };
 
 pub const DoctorOpts = struct {
@@ -298,6 +303,11 @@ pub fn parse(args: []const []const u8) ParseError!Command {
         return Command{ .inspect = .{ .id = args[2], .json = as_json, .file = file } };
     }
 
+    if (std.mem.eql(u8, name, "score")) {
+        if (args.len != 3) return ParseError.MissingSessionId;
+        return Command{ .score = .{ .id = args[2] } };
+    }
+
     for (future_commands) |f| {
         if (std.mem.eql(u8, name, f)) return Command{ .future = f };
     }
@@ -326,6 +336,7 @@ pub fn printHelp() !void {
         \\  annalist sessions [--branch <name>]    list recorded sessions
         \\  annalist branch [name]               list or switch workstream
         \\  annalist inspect <session-id>        inspect a session
+        \\  annalist score <session-id>          risk-score a session (needs JEV_API_KEY)
         \\  annalist diff <a> <b>                  compare two sessions
         \\  annalist rewind <session> [seq] [--dry-run] [--force]  restore files to a recorded point
         \\  annalist gate --session <id> [--policy <file>]  policy check: 0 pass, 2 deny, 1 broken

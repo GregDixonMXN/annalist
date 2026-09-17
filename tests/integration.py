@@ -82,6 +82,25 @@ with tempfile.TemporaryDirectory(prefix='annalist-integration-') as temp:
     run('gate','--session','999999','--policy','policy.toml',code=1);check('gate rejects unknown session',True)
     (project/'bad-policy.toml').write_text('allow_paths = []' + chr(10) + 'bogus = 1' + chr(10))
     run('gate','--session',str(gate_id),'--policy','bad-policy.toml',code=1);check('gate rejects unknown policy key',True)
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    seen = []
+    class JevStub(BaseHTTPRequestHandler):
+        def do_POST(self):
+            n = int(self.headers.get('Content-Length', 0))
+            seen.append(json.loads(self.rfile.read(n)))
+            body = json.dumps({"answers": {"risk": {"type": "score", "score": 3.2, "confidence": 0.8}}}).encode()
+            self.send_response(200); self.send_header('Content-Type', 'application/json'); self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body)
+        def log_message(self, format, *args): pass
+    stub = HTTPServer(('127.0.0.1', 0), JevStub)
+    threading.Thread(target=stub.serve_forever, daemon=True).start()
+    senv = dict(env, JEV_API_KEY='test-key', JEV_API_URL='http://127.0.0.1:%d' % stub.server_port)
+    p = subprocess.run([str(binary), 'score', sid], cwd=project, env=senv, text=True, capture_output=True, timeout=30)
+    assert p.returncode == 0, (p.returncode, p.stdout, p.stderr)
+    check('score stores judgment', db.execute('select risk_score, risk_confidence from sessions where id=?', (sid,)).fetchone() == (80, 80))
+    check('score sends state', seen and seen[0]['questions']['risk']['type'] == 'score' and isinstance(seen[0]['state']['files'], list))
+    check('sessions shows risk', '80' in subprocess.run([str(binary), 'sessions'], cwd=project, env=env, text=True, capture_output=True, timeout=20).stdout)
+    stub.shutdown()
     gblob = None
     gsaved = None
     ghash = None

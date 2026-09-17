@@ -14,6 +14,7 @@ const branch = @import("branch.zig");
 const policy = @import("policy.zig");
 const unbundle = @import("import.zig");
 const gate = @import("gate.zig");
+const score = @import("score.zig");
 
 pub const version_string = "1.0.0";
 
@@ -142,6 +143,24 @@ pub fn main() !void {
                     error.NoSuchSession => log.err("no session '{s}' in this project", .{opts.id}),
                     error.BadSessionId => log.err("bad session id '{s}'", .{opts.id}),
                     else => log.err("inspect failed: {s}", .{@errorName(err)}),
+                }
+                std.process.exit(1);
+            };
+        },
+        .score => |opts| {
+            var proj = try requireProject(allocator, false);
+            defer proj.deinit(allocator);
+            var database = session.openDb(allocator) catch |err| {
+                log.err("cannot open database: {s}", .{@errorName(err)});
+                std.process.exit(1);
+            };
+            defer database.close();
+            score.scoreSession(allocator, &database, proj.id, opts.id) catch |err| {
+                switch (err) {
+                    error.NoSuchSession => log.err("no session '{s}' in this project", .{opts.id}),
+                    error.BadSessionId => log.err("bad session id '{s}'", .{opts.id}),
+                    error.MissingKey => std.process.exit(2),
+                    else => {},
                 }
                 std.process.exit(1);
             };

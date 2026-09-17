@@ -14,13 +14,13 @@ pub fn listSessions(allocator: std.mem.Allocator, database: *db.Db, project_id: 
     const out = &fw.interface;
 
     var stmt = try database.prepare(
-        "SELECT id, command, started_at, ended_at, exit_code, status, branch FROM sessions WHERE project_id = ?1 AND (?2 IS NULL OR branch = ?2) ORDER BY id ASC;",
+        "SELECT id, command, started_at, ended_at, exit_code, status, branch, risk_score FROM sessions WHERE project_id = ?1 AND (?2 IS NULL OR branch = ?2) ORDER BY id ASC;",
     );
     defer stmt.finalize();
     try stmt.bindText(1, project_id);
     if (branch_filter) |b| try stmt.bindText(2, b) else try stmt.bindNull(2);
 
-    try out.writeAll("ID   BRANCH        COMMAND              STARTED             DURATION   CHANGES   STATUS\n");
+    try out.writeAll("ID   BRANCH        COMMAND              STARTED             DURATION   CHANGES   STATUS    RISK\n");
     var count: usize = 0;
     while (try stmt.step()) {
         const id = stmt.columnInt64(0);
@@ -63,7 +63,16 @@ pub fn listSessions(allocator: std.mem.Allocator, database: *db.Db, project_id: 
         pad = 9;
         while (pad > changes_s.len) : (pad -= 1) try out.writeAll(" ");
         try out.writeAll(status);
-        try out.writeAll("\n");
+        pad = 10;
+        while (pad > status.len) : (pad -= 1) try out.writeAll(" ");
+        if (stmt.columnIsNull(7)) {
+            try out.writeAll("-\n");
+        } else {
+            const risk_s = try std.fmt.allocPrint(allocator, "{d}", .{stmt.columnInt64(7)});
+            defer allocator.free(risk_s);
+            try out.writeAll(risk_s);
+            try out.writeAll("\n");
+        }
         count += 1;
     }
     if (count == 0) {
@@ -85,7 +94,7 @@ pub fn inspectSession(
         return error.BadSessionId;
     };
     var stmt = try database.prepare(
-        "SELECT command, cwd, started_at, ended_at, exit_code, status FROM sessions WHERE id = ?1 AND project_id = ?2;",
+        "SELECT command, cwd, started_at, ended_at, exit_code, status, risk_score, risk_confidence FROM sessions WHERE id = ?1 AND project_id = ?2;",
     );
     defer stmt.finalize();
     try stmt.bindInt64(1, id);
@@ -102,9 +111,11 @@ pub fn inspectSession(
     const exit_code: ?i64 = if (stmt.columnIsNull(4)) null else stmt.columnInt64(4);
     const status = try allocator.dupe(u8, stmt.columnText(5));
     defer allocator.free(status);
+    const risk: ?i64 = if (stmt.columnIsNull(6)) null else stmt.columnInt64(6);
+    const risk_confidence: ?i64 = if (stmt.columnIsNull(7)) null else stmt.columnInt64(7);
 
     if (as_json) {
-        return printJson(allocator, id, command, cwd, started, ended, exit_code, status);
+        return printJson(allocator, id, command, cwd, started, ended, exit_code, status, risk, risk_confidence);
     }
 
     if (file) |f| {
@@ -124,6 +135,10 @@ pub fn inspectSession(
 
     const counts = events.countFileEvents(database, id) catch events.Counts{};
     const total = events.countAll(database, id) catch 0;
+    const risk_s = if (risk) |r| try std.fmt.allocPrint(allocator, "{d}", .{r}) else try allocator.dupe(u8, "unscored");
+    defer allocator.free(risk_s);
+    const risk_conf_s = if (risk_confidence) |c| try std.fmt.allocPrint(allocator, " (confidence {d})", .{c}) else try allocator.dupe(u8, "");
+    defer allocator.free(risk_conf_s);
 
     try out.print(
         \\Annalist Session {s}
@@ -134,6 +149,7 @@ pub fn inspectSession(
         \\Duration:       {s}
         \\Exit status:    {any}
         \\Status:         {s}
+        \\Risk:           {s}{s}
         \\
         \\File changes
         \\────────────────────────────
@@ -155,6 +171,8 @@ pub fn inspectSession(
         dur_s,
         exit_code,
         status,
+        risk_s,
+        risk_conf_s,
         counts.created,
         counts.modified,
         counts.deleted,
@@ -321,6 +339,8 @@ fn printJson(
     ended: ?i64,
     exit_code: ?i64,
     status: []const u8,
+    risk: ?i64,
+    risk_confidence: ?i64,
 ) !void {
     var buf: [4096]u8 = undefined;
     var fw = std.fs.File.stdout().writer(&buf);
@@ -334,9 +354,9 @@ fn printJson(
     defer allocator.free(status_esc);
 
     try out.print(
-        \\{{"id":{d},"command":{s},"cwd":{s},"started_at":{d},"ended_at":{any},"exit_code":{any},"status":{s}}}
+        \\{{"id":{d},"command":{s},"cwd":{s},"started_at":{d},"ended_at":{any},"exit_code":{any},"status":{s},"risk_score":{any},"risk_confidence":{any}}}
         \\
-    , .{ id, cmd_esc, cwd_esc, started, ended, exit_code, status_esc });
+    , .{ id, cmd_esc, cwd_esc, started, ended, exit_code, status_esc, risk, risk_confidence });
     try out.flush();
 }
 

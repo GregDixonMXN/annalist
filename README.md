@@ -55,6 +55,10 @@ annalist rewind 1
 
 Stop agents and editors before recovery. A full rewind restores **only paths touched by that run** to their pre-run state. `rewind 1 5` restores those paths to their state at event sequence 5. It is not a whole-project checkout. Later edits cause refusal; `--force` overrides that guard, not missing-content or unsafe-path checks. Symlink traversal is refused. All required content is validated before file mutation, and current touched files are copied into `.annalist/recovery/<timestamp>-<id>/`, with an adjacent JSON manifest recording absent paths. Individual writes are atomic; a multi-file recovery is **not** an atomic transaction. If I/O fails mid-recovery, use the retained copies and manifest to restore current work. Keep an independent backup.
 
+## Risk scoring (opt-in)
+
+`annalist score <session-id>` sends one Jev judgment over what ran, what it touched, and how it ended — scored 0-100 with a confidence, stored on the session. `sessions` shows a RISK column, `inspect` (text, `--json`, dashboard) shows the score, so review starts with `show me everything above 70%` instead of raw rows. Needs `JEV_API_KEY`. The gate path never calls out: CI stays fully offline, scoring is a deliberate local act after the fact. Unscored sessions show `-` / `Risk unscored`.
+
 ## Privacy and recording boundaries
 
 **File contents and command arguments can contain secrets. No automatic redaction or encryption is provided.** Eligible baseline file contents are stored even if the run never changes them. Review exclusions before the first run. Do not pass credentials as arguments. Protect exports as source-code archives.

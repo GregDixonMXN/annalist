@@ -139,6 +139,13 @@ pub const Db = struct {
             \\ALTER TABLE sessions ADD COLUMN branch TEXT NOT NULL DEFAULT 'main';
             ,
         },
+        .{
+            .version = 5,
+            .sql =
+            \\ALTER TABLE sessions ADD COLUMN risk_score INTEGER;
+            \\ALTER TABLE sessions ADD COLUMN risk_confidence INTEGER;
+            ,
+        },
     };
 
     fn appliedVersions(self: *Db, allocator: std.mem.Allocator) DbError!std.AutoHashMap(u32, void) {
